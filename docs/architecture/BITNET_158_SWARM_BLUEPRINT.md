@@ -10,14 +10,16 @@ Primary references:
 
 - Microsoft BitNet repository: `https://github.com/microsoft/BitNet`
 - BitNet paper: `https://arxiv.org/pdf/2310.11453`
+- BitNet b1.58 paper: `https://arxiv.org/pdf/2402.17764`
 
-The BitNet paper introduces a scalable 1-bit Transformer architecture for LLMs and proposes BitLinear as a drop-in replacement for `nn.Linear`, trained from scratch with 1-bit weights. It reports competitive language-modeling performance while reducing memory footprint and energy consumption compared with FP16 baselines and 8-bit quantization approaches.
+The original BitNet paper introduces a scalable 1-bit Transformer architecture for LLMs and proposes BitLinear as a drop-in replacement for `nn.Linear`, trained from scratch with 1-bit weights. The BitNet b1.58 paper introduces a ternary variant where weights take values in `{-1, 0, 1}`, uses 1.58-bit weights with 8-bit activations, and reports improved latency, memory, throughput, and energy behavior versus FP16/BF16 baselines.
 
 Important terminology note:
 
 ```text
-BitNet paper -> 1-bit Transformer / BitLinear
-Camelot blueprint -> 1.58-bit / ternary local-swarm implementation path
+BitNet paper      -> 1-bit Transformer / BitLinear
+BitNet b1.58      -> ternary {-1, 0, 1} weights + 8-bit activations
+Camelot blueprint -> local swarm implementation path inspired by BitNet b1.58
 ```
 
 Camelot's 1.58-bit swarm design should be treated as an implementation blueprint inspired by low-bit inference research, not as a claim that any arbitrary model automatically runs at the estimated footprint.
@@ -33,10 +35,11 @@ This layer is intended to support high-volume local tasks while respecting the 8
 
 ## 2. Mathematical Foundation
 
-The design is based on BitNet-style low-bit model execution and a ternary-weight target:
+The design is based on BitNet b1.58-style low-bit model execution and a ternary-weight target:
 
 ```text
 weights ∈ {-1, 0, 1}
+activations ≈ 8-bit
 ```
 
 Instead of heavy floating-point multiplication, inference aims to rely primarily on addition/subtraction style operations. This makes CPU-native inference more feasible on x86 and ARM devices when paired with a compatible runtime.
@@ -44,7 +47,9 @@ Instead of heavy floating-point multiplication, inference aims to rely primarily
 Implementation reality:
 
 - Microsoft BitNet provides the official source anchor.
-- BitLinear is the core architectural substitution described in the paper.
+- BitLinear is the core architectural substitution described in the original paper.
+- BitNet b1.58 adds the ternary zero state, which supports feature filtering.
+- The b1.58 paper reports that performance begins matching full-precision baselines around the 3B scale under their training and evaluation setup.
 - Runtime memory depends on KV cache, tokenizer, sequence length, batching, framework overhead, and implementation details.
 
 ## 3. Titanium Law Fit
@@ -57,6 +62,13 @@ Traditional multi-agent swarms can exceed local RAM limits quickly. The 1.58-bit
 - immediate worker dissolution,
 - compressed Symbolect/TOON communication,
 - Rotel memory sentry enforcement.
+
+Source-aligned cost notes from the b1.58 paper:
+
+- BitNet b1.58 uses 1.58-bit weights and 8-bit activations.
+- In the paper's GPU benchmark table, BitNet b1.58 3B reports lower measured memory than a reproduced FP16 LLaMA-style 3B baseline.
+- The paper reports increasing memory and latency advantages as model size scales.
+- The paper reports arithmetic energy savings from replacing FP16 multiplication-heavy paths with INT8-add-heavy computation.
 
 Approximate design target:
 
@@ -214,7 +226,7 @@ Phase 2:
 
 Phase 3:
 
-- Integrate Microsoft BitNet runtime research path.
+- Integrate Microsoft BitNet / BitNet b1.58 runtime research path.
 - Add Rotel memory sentry integration.
 - Add dashboard metrics.
 - Benchmark real RSS memory, throughput, and context-length behavior.
@@ -229,9 +241,22 @@ Before enabling this as production local swarm execution, measure:
 - max concurrent workers under 8GB,
 - tokens/sec on CPU,
 - worker spawn/dissolve latency,
-- accuracy vs. full precision or cloud model baseline.
+- accuracy vs. full precision or cloud model baseline,
+- latency per output token,
+- energy/power draw if measurable.
 
-## 14. Golden Rule
+## 14. Research-to-Camelot Translation
+
+```text
+BitNet b1.58 idea      -> low-bit lightweight local worker model
+Ternary weights        -> reduced memory and arithmetic cost
+8-bit activations      -> practical runtime compromise
+Feature filtering zero -> possible better small-worker specialization
+Camelot Spawn/Report   -> many tiny bounded agents instead of one huge local model
+Rotel guard            -> prevents swarm from crossing Titanium Law
+```
+
+## 15. Golden Rule
 
 Spawn many, think small, report tight, dissolve fast.
 
