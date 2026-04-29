@@ -16,6 +16,7 @@ import { Toaster } from './components/ui/sonner';
 import { toast } from 'sonner';
 import { useAuth } from './components/AuthProvider';
 import { personaService, transcriptService } from './lib/firestore';
+import { DiagnosticDialog } from './components/DiagnosticDialog';
 import { 
   Mic, 
   MicOff, 
@@ -37,7 +38,8 @@ import {
   Brain,
   LogIn,
   LogOut,
-  User as UserIcon
+  User as UserIcon,
+  ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -49,6 +51,7 @@ export default function App() {
   const [dialogConfig, setDialogConfig] = useState<{ mode: 'create' | 'edit'; persona: Persona | null } | null>(null);
   const [tailscaleDevices, setTailscaleDevices] = useState<TailscaleDevice[]>([]);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
+  const [isDiagnosticOpen, setIsDiagnosticOpen] = useState(false);
 
   const fetchTailscaleDevices = useCallback(async () => {
     setIsLoadingDevices(true);
@@ -59,17 +62,21 @@ export default function App() {
       if (res.ok) {
         setTailscaleDevices(data);
       } else {
-        console.error('Tailscale API Error:', data.error);
-        if (res.status === 400) {
-          // Semi-silent for 400 (unconfigured) to avoid annoying new users
-          console.warn('Tailscale not configured yet');
-        } else {
+        // Log to console for debugging
+        console.warn('Tailscale API response:', res.status, data.error);
+        
+        // Clear devices if not configured or error
+        setTailscaleDevices([]);
+        
+        // ONLY toast if it's NOT a configuration (400) error
+        // Standard user flow might not have Tailscale yet, so we don't want to alert them constantly
+        if (res.status !== 400) {
           toast.error(`Tailscale Error: ${data.error || 'Failed to fetch devices'}`);
         }
       }
     } catch (e) {
       console.error('Failed to fetch Tailscale devices:', e);
-      toast.error('Network error connecting to Tailscale bridge');
+      // Network error (e.g. server down)
     } finally {
       setIsLoadingDevices(false);
     }
@@ -200,6 +207,11 @@ export default function App() {
         onSave={handleSavePersona}
       />
 
+      <DiagnosticDialog 
+        isOpen={isDiagnosticOpen} 
+        onClose={() => setIsDiagnosticOpen(false)} 
+      />
+
       {/* Header */}
       <header className="border-bottom bg-card/50 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -234,6 +246,17 @@ export default function App() {
               <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-muted'}`} />
               {isConnected ? 'Live Session Active' : isSyncing ? 'Syncing...' : 'Ready'}
             </div>
+
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="h-8 w-8 rounded-full" 
+              onClick={() => setIsDiagnosticOpen(true)}
+              title="System Diagnostics"
+            >
+              <ShieldAlert className="w-4 h-4 text-muted-foreground" />
+            </Button>
+
             <Button 
               variant={isConnected ? "destructive" : "default"}
               size="sm"
