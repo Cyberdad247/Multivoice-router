@@ -2,19 +2,55 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Multivoice Router — Camelot L7 Interface
 
-This contains everything you need to run your app locally.
+This repository is the voice, persona, and input compiler layer (Anya_Ω) of the Camelot-OS architecture.
 
-View your app in AI Studio: https://ai.studio/apps/dd754854-c312-498a-a04b-681295628156
+## 🧠 System Overview
 
-## Run Locally
+```text
+Voice Input
+→ Anya Compiler (APEE + QFT)
+→ Titan Prompt
+→ Camelot Engine Pipeline
+→ AETHER Router
+→ Edge Nodes (PhoneClaw / Chrome / RustDesk)
+→ Execution
+→ OUROBOROS Memory + Ledger
+```
 
-**Prerequisites:**  Node.js
+## ⚙️ Core Components
 
+### Anya Compiler
+- Triple-QFT filtering
+- Titan Prompt generation
+- AgentArmor security
+- Skill loading
+
+### Engine Layer
+- APEE (input compiler)
+- GENESIS (persona)
+- VIDENEPTUS (reasoning)
+- VERITAS (verification)
+- AETHER (routing)
+- ANTIGRAVITY (execution safety)
+- OUROBOROS (memory)
+- AURORA (vision)
+- LYRICUS (audio)
+
+### Edge Execution
+- PhoneClaw (Android)
+- superpowers-chrome (browser)
+- RustDesk Agent (desktop)
+
+## 🚀 Run Locally
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Set `GEMINI_API_KEY` in `.env.local`
+3. Run:
    `npm run dev`
+
+## 🧬 Vision
+
+This is not just a chatbot. It is a governed AI execution system that converts human intent into secure, traceable, and executable commands.
