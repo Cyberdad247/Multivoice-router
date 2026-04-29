@@ -3,26 +3,16 @@ import { routeIntent } from '../router/intent-router';
 import { evaluatePolicy } from '../policy/policy-engine';
 import { forgeKnight } from '../genesis/knight-forge';
 import { evolveKnight } from '../genesis/evolve-knight';
+import { runVideneptus } from '../merlin/videneptus-engine';
 
-function textOf(input: unknown): string {
-  if (typeof input === 'string') return input;
-  try { return JSON.stringify(input); } catch { return String(input); }
-}
-
+function textOf(input: unknown): string { if (typeof input === 'string') return input; try { return JSON.stringify(input); } catch { return String(input); } }
 function tokenEstimate(text: string): number { return Math.ceil(text.length / 4); }
-function stableHash(value: unknown): string {
-  const text = textOf(value);
-  let hash = 0;
-  for (let i = 0; i < text.length; i++) { hash = ((hash << 5) - hash) + text.charCodeAt(i); hash |= 0; }
-  return Math.abs(hash).toString(16).padStart(8, '0');
-}
+function stableHash(value: unknown): string { const text = textOf(value); let hash = 0; for (let i = 0; i < text.length; i++) { hash = ((hash << 5) - hash) + text.charCodeAt(i); hash |= 0; } return Math.abs(hash).toString(16).padStart(8, '0'); }
 
 export const APEEEngine: CamelotEngine = {
   id: 'APEE', name: 'APEE (Anya Prompt Enhancement Engine)', domain: 'input_compilation', description: 'Triple-QFT input normalization and Titan prompt compilation.',
   async run(request: EngineRequest): Promise<EngineResult> {
-    const raw = textOf(request.input).trim();
-    const normalized = raw.replace(/\s+/g, ' ').replace(/[“”]/g, '"').replace(/[’]/g, "'");
-    const route = routeIntent(normalized);
+    const raw = textOf(request.input).trim(); const normalized = raw.replace(/\s+/g, ' ').replace(/[“”]/g, '"').replace(/[’]/g, "'"); const route = routeIntent(normalized);
     return { engineId: 'APEE', ok: true, output: { raw, normalized, titanPrompt: { intent: route.intent, targetNode: route.targetNode, payload: route.payload, confidence: normalized.length > 8 ? 0.82 : 0.55 } }, metadata: { estimatedTokens: tokenEstimate(normalized) } };
   },
 };
@@ -30,38 +20,31 @@ export const APEEEngine: CamelotEngine = {
 export const GENESISEngine: CamelotEngine = {
   id: 'GENESIS', name: 'GENESIS (Persona Forge)', domain: 'persona', description: 'Persona shaping, Knight forging, and Omega evolution.',
   async run(request: EngineRequest): Promise<EngineResult> {
-    const payload: any = request.input || {};
-    const text = textOf(payload).toLowerCase();
-
+    const payload: any = request.input || {}; const text = textOf(payload).toLowerCase();
     if (payload.mode === 'forge_knight' || text.includes('forge knight') || text.includes('new knight')) {
-      const knight = forgeKnight({
-        name: payload.name,
-        domain: payload.domain || payload.titanPrompt?.payload?.domain || 'general operations',
-        mission: payload.mission || payload.titanPrompt?.payload?.text || payload.titanPrompt?.payload?.action || textOf(payload),
-        constraints: payload.constraints || [],
-        desiredTone: payload.desiredTone,
-      });
+      const knight = forgeKnight({ name: payload.name, domain: payload.domain || payload.titanPrompt?.payload?.domain || 'general operations', mission: payload.mission || payload.titanPrompt?.payload?.text || payload.titanPrompt?.payload?.action || textOf(payload), constraints: payload.constraints || [], desiredTone: payload.desiredTone });
       return { engineId: 'GENESIS', ok: true, output: { ...payload, genesisMode: 'forge_knight', knight } };
     }
-
     if (payload.mode === 'evolve_knight' || text.includes('//evolve')) {
       if (!payload.existingKnight) return { engineId: 'GENESIS', ok: false, errors: ['existingKnight is required for //EVOLVE.'] };
       const evolved = evolveKnight({ existing: payload.existingKnight, newMaterial: payload.newMaterial || textOf(payload), newConstraints: payload.newConstraints || [] });
       return { engineId: 'GENESIS', ok: true, output: { ...payload, genesisMode: 'evolve_knight', knight: evolved } };
     }
-
-    const source = request.context?.source || 'text';
-    const personaMode = source === 'voice' ? 'jarvis_operator' : 'systems_architect';
+    const source = request.context?.source || 'text'; const personaMode = source === 'voice' ? 'jarvis_operator' : 'systems_architect';
     return { engineId: 'GENESIS', ok: true, output: { ...payload, persona: { mode: personaMode, tone: 'concise, governed, operator-grade', behaviorVector: ['clarify-risk', 'preserve-context', 'execute-with-ledger'] } } };
   },
 };
 
 export const VIDENEPTUSEngine: CamelotEngine = {
-  id: 'VIDENEPTUS', name: 'VIDENEPTUS (Logic Router)', domain: 'logic_reasoning', description: 'Reasoning planner with lightweight ToT/GoT style branch selection.',
+  id: 'VIDENEPTUS', name: 'VIDENEPTUS (Logic Router)', domain: 'logic_reasoning', description: 'L3 neural reasoning microkernel with LaC, topology selection, NDR+S decomposition, and provider routing.',
   async run(request: EngineRequest): Promise<EngineResult> {
     const payload: any = request.input || {}; const compiled = payload.titanPrompt || payload;
-    const branches = [{ name: 'direct', score: 0.72, plan: 'Route immediately if low-risk and clear.' }, { name: 'governed', score: compiled.intent === 'conversation' ? 0.5 : 0.88, plan: 'Apply policy gates, then route to edge node.' }, { name: 'memory_first', score: /remember|previous|history|context/i.test(textOf(compiled.payload)) ? 0.9 : 0.4, plan: 'Hydrate memory before action.' }].sort((a, b) => b.score - a.score);
-    return { engineId: 'VIDENEPTUS', ok: true, output: { ...payload, reasoning: { selectedBranch: branches[0], branches, lacTemperatureSweep: [0.2, 0.7, 1.2, 0.4] } } };
+    const targetNode = compiled.targetNode || compiled.routing?.targetNode || payload.verification?.route?.targetNode || 'gemini';
+    const intent = compiled.intent || payload.verification?.route?.intent || 'conversation';
+    const riskLevel = compiled.constraints?.riskLevel || payload.verification?.route?.riskLevel || request.context?.policy?.riskLevel || 'low';
+    const requiresApproval = compiled.constraints?.requiresApproval || payload.verification?.route?.requiresApproval || request.context?.policy?.requiresApproval || false;
+    const videneptus = runVideneptus({ intent, payload: compiled.payload || compiled.entities || payload, targetNode, riskLevel, requiresApproval });
+    return { engineId: 'VIDENEPTUS', ok: true, output: { ...payload, reasoning: videneptus } };
   },
 };
 
@@ -92,8 +75,7 @@ export const ANTIGRAVITYEngine: CamelotEngine = {
 export const OUROBOROSEngine: CamelotEngine = {
   id: 'OUROBOROS', name: 'OUROBOROS (Infinite Memory)', domain: 'memory_truth', description: 'Session compression, UKG generation, provenance ledger event creation.',
   async run(request: EngineRequest): Promise<EngineResult> {
-    const raw = textOf(request.input); const l0 = raw.slice(0, 180).replace(/\s+/g, ' '); const l1 = raw.slice(0, 1800);
-    const ukg = { '@context': 'https://camelot-os.local/ukg/v2', '@type': 'CamelotMemoryEvent', id: `ukg:${stableHash(request.input)}`, l0, l1, l2Ref: `viking://camelot/context/l2/${stableHash(raw)}`, anchors: Array.from(new Set(raw.match(/[A-Z][A-Z0-9_\-]{2,}|\/\/[A-Z]+|viking:\/\/[^\s]+/g) || [])).slice(0, 16), provenanceHash: stableHash({ input: request.input, context: request.context }), timestamp: new Date().toISOString() };
+    const raw = textOf(request.input); const l0 = raw.slice(0, 180).replace(/\s+/g, ' '); const l1 = raw.slice(0, 1800); const ukg = { '@context': 'https://camelot-os.local/ukg/v2', '@type': 'CamelotMemoryEvent', id: `ukg:${stableHash(request.input)}`, l0, l1, l2Ref: `viking://camelot/context/l2/${stableHash(raw)}`, anchors: Array.from(new Set(raw.match(/[A-Z][A-Z0-9_\-]{2,}|\/\/[A-Z]+|viking:\/\/[^\s]+/g) || [])).slice(0, 16), provenanceHash: stableHash({ input: request.input, context: request.context }), timestamp: new Date().toISOString() };
     return { engineId: 'OUROBOROS', ok: true, output: { ukg, writeTargets: ['open-notebook/appwrite', 'provenance-ledger', 'qdrant-index', 'neo4j-graph'] }, metadata: { l0Tokens: tokenEstimate(l0), l1Tokens: tokenEstimate(l1) } };
   },
 };
