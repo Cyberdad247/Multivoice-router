@@ -4,6 +4,7 @@ import { evaluatePolicy } from '../policy/policy-engine';
 import { forgeKnight } from '../genesis/knight-forge';
 import { evolveKnight } from '../genesis/evolve-knight';
 import { runVideneptus } from '../merlin/videneptus-engine';
+import { runOuroboros } from '../memory/ouroboros-engine';
 
 function textOf(input: unknown): string { if (typeof input === 'string') return input; try { return JSON.stringify(input); } catch { return String(input); } }
 function tokenEstimate(text: string): number { return Math.ceil(text.length / 4); }
@@ -73,10 +74,10 @@ export const ANTIGRAVITYEngine: CamelotEngine = {
 };
 
 export const OUROBOROSEngine: CamelotEngine = {
-  id: 'OUROBOROS', name: 'OUROBOROS (Infinite Memory)', domain: 'memory_truth', description: 'Session compression, UKG generation, provenance ledger event creation.',
+  id: 'OUROBOROS', name: 'OUROBOROS (Infinite Memory)', domain: 'memory_truth', description: 'JSON-LD UKG generation, Sentinel Compression, runic recall/fuse/transmit lattice, GraphRAG write targets, and hydration refs.',
   async run(request: EngineRequest): Promise<EngineResult> {
-    const raw = textOf(request.input); const l0 = raw.slice(0, 180).replace(/\s+/g, ' '); const l1 = raw.slice(0, 1800); const ukg = { '@context': 'https://camelot-os.local/ukg/v2', '@type': 'CamelotMemoryEvent', id: `ukg:${stableHash(request.input)}`, l0, l1, l2Ref: `viking://camelot/context/l2/${stableHash(raw)}`, anchors: Array.from(new Set(raw.match(/[A-Z][A-Z0-9_\-]{2,}|\/\/[A-Z]+|viking:\/\/[^\s]+/g) || [])).slice(0, 16), provenanceHash: stableHash({ input: request.input, context: request.context }), timestamp: new Date().toISOString() };
-    return { engineId: 'OUROBOROS', ok: true, output: { ukg, writeTargets: ['open-notebook/appwrite', 'provenance-ledger', 'qdrant-index', 'neo4j-graph'] }, metadata: { l0Tokens: tokenEstimate(l0), l1Tokens: tokenEstimate(l1) } };
+    const memory = runOuroboros({ sessionId: request.context?.sessionId, commandId: request.context?.commandId, rawState: request.input, source: request.context?.source, anchors: request.context?.memoryRefs });
+    return { engineId: 'OUROBOROS', ok: true, output: memory, metadata: memory.sentinelCompression };
   },
 };
 
