@@ -4,6 +4,24 @@ Camelot-OS | Local-First Swarm Execution Path
 
 The 1.58-bit swarm architecture is a future implementation path for running large numbers of local agents on consumer hardware without requiring expensive GPUs.
 
+## Source Anchors
+
+Primary references:
+
+- Microsoft BitNet repository: `https://github.com/microsoft/BitNet`
+- BitNet paper: `https://arxiv.org/pdf/2310.11453`
+
+The BitNet paper introduces a scalable 1-bit Transformer architecture for LLMs and proposes BitLinear as a drop-in replacement for `nn.Linear`, trained from scratch with 1-bit weights. It reports competitive language-modeling performance while reducing memory footprint and energy consumption compared with FP16 baselines and 8-bit quantization approaches.
+
+Important terminology note:
+
+```text
+BitNet paper -> 1-bit Transformer / BitLinear
+Camelot blueprint -> 1.58-bit / ternary local-swarm implementation path
+```
+
+Camelot's 1.58-bit swarm design should be treated as an implementation blueprint inspired by low-bit inference research, not as a claim that any arbitrary model automatically runs at the estimated footprint.
+
 ## 1. Role
 
 ```text
@@ -15,13 +33,19 @@ This layer is intended to support high-volume local tasks while respecting the 8
 
 ## 2. Mathematical Foundation
 
-The design is based on BitNet-style ternary model weights:
+The design is based on BitNet-style low-bit model execution and a ternary-weight target:
 
 ```text
 weights ∈ {-1, 0, 1}
 ```
 
-Instead of heavy floating-point multiplication, inference relies primarily on addition/subtraction style operations. This makes CPU-native inference more feasible on x86 and ARM devices.
+Instead of heavy floating-point multiplication, inference aims to rely primarily on addition/subtraction style operations. This makes CPU-native inference more feasible on x86 and ARM devices when paired with a compatible runtime.
+
+Implementation reality:
+
+- Microsoft BitNet provides the official source anchor.
+- BitLinear is the core architectural substitution described in the paper.
+- Runtime memory depends on KV cache, tokenizer, sequence length, batching, framework overhead, and implementation details.
 
 ## 3. Titanium Law Fit
 
@@ -37,7 +61,7 @@ Traditional multi-agent swarms can exceed local RAM limits quickly. The 1.58-bit
 Approximate design target:
 
 ```text
-2B parameter 1.58-bit model ≈ ~0.4 GB RAM footprint
+2B parameter 1.58-bit model ≈ ~0.4 GB RAM footprint for weights-only estimate
 ```
 
 This is a blueprint target, not a guaranteed runtime metric. Actual memory depends on implementation, runtime, tokenizer, KV cache, batching, and inference engine.
@@ -190,11 +214,24 @@ Phase 2:
 
 Phase 3:
 
-- Integrate BitNet-style runtime.
+- Integrate Microsoft BitNet runtime research path.
 - Add Rotel memory sentry integration.
 - Add dashboard metrics.
+- Benchmark real RSS memory, throughput, and context-length behavior.
 
-## 13. Golden Rule
+## 13. Benchmark Requirements
+
+Before enabling this as production local swarm execution, measure:
+
+- model load memory,
+- KV cache growth by context length,
+- per-worker RSS,
+- max concurrent workers under 8GB,
+- tokens/sec on CPU,
+- worker spawn/dissolve latency,
+- accuracy vs. full precision or cloud model baseline.
+
+## 14. Golden Rule
 
 Spawn many, think small, report tight, dissolve fast.
 
