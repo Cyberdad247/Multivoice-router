@@ -1,8 +1,8 @@
 # MMAP – Mental Model Application Protocol
 
-Camelot-OS | Reasoning Tool Cartridge
+Camelot-OS | Merlin Reasoning Cartridge for Knight Forging
 
-MMAP is the structured reasoning protocol for applying mental models to problem-solving. It extends the Lord Nexus mental model library with a usable selection, ranking, synthesis, and reflection workflow.
+MMAP is the structured reasoning protocol Merlin uses during the schematic phase of Knight creation. It selects and applies mental models before GENESIS forges a Knight, ensuring each Knight receives a stable cognition lattice instead of a loose persona description.
 
 ## Source Upload
 
@@ -14,36 +14,54 @@ MMAP is the structured reasoning protocol for applying mental models to problem-
 - Associated Agents: Arthur, Guinevere, Merlin, Round Table
 - LLM Compatibility: Any LLM, Claude Opus, GPT-4, Gemini
 
+## Correct Camelot Role
+
+```text
+MMAP belongs to Merlin.
+```
+
+MMAP is not primarily a generic user-facing decision-support module. In Camelot, its core use is:
+
+```text
+Anya scan
+  -> Merlin MMAP cognitive lattice
+  -> GENESIS Knight forge
+  -> Soul Matrix / νKG output
+  -> OUROBOROS memory write
+```
+
 ## Purpose
 
 ```text
 MMAP
-= select the right mental models
+= select mental models for a Knight's cognition
 + explain why they apply
-+ synthesize them into a reasoning lattice
-+ generate reflection prompts
++ synthesize a reasoning lattice
++ produce Proteus and SkillGraph hints
++ preserve the reasoning trace
 ```
 
-MMAP is not just a list of models. It is the application layer that turns the 100-model cartridge into runtime reasoning.
+MMAP turns the Lord Nexus 100 Mental Models cartridge into a practical Knight-design layer.
 
 ## Five-Stage Workflow
 
 ### 1. Input Clarification
 
-Parse the user request for:
+Parse the Knight request for:
 
-- problem domain,
-- uncertainty level,
-- decision type,
+- domain,
+- mission,
 - constraints,
-- timeframe,
-- stakes.
+- risk profile,
+- required behavior,
+- reasoning style,
+- failure modes.
 
 If confidence is low, ask one clarifying question at a time.
 
 ### 2. Model Selection
 
-Map the clarified problem to candidate mental models using metadata:
+Map the Knight mission to candidate mental models using metadata:
 
 - domain relevance,
 - decision type,
@@ -59,83 +77,99 @@ Rank candidates and select 3-7 models.
 Each selected model should include:
 
 - definition,
-- origin or rationale,
-- when to apply,
+- why it applies to the Knight,
+- what behavior it creates,
 - limitations,
-- tailored example.
+- failure modes it prevents.
 
 ### 4. Latticework Synthesis
 
-Combine selected models into a coherent reasoning map.
+Combine selected models into a cognitive lattice.
 
 Output should identify:
 
 - complementary models,
 - conflicts or tradeoffs,
 - application order,
-- decision implications.
+- Proteus vector hints,
+- SkillGraph4 hints.
 
 ### 5. Reflection and Learning
 
-Generate reflection prompts to improve user reasoning over time.
+Generate reflection prompts to preserve design rationale.
 
 Examples:
 
 - What assumption did this model expose?
-- Which model changed the recommendation the most?
-- What evidence would change the conclusion?
+- Which model most shaped this Knight's behavior?
+- What downstream consequence must this Knight always check?
 
 ## Runtime Algorithm
 
 ```python
-def mental_model_navigator(user_input):
-    context = parse_input(user_input)
+def mmap_for_knight_forge(knight_request):
+    context = parse_knight_request(knight_request)
     while confidence(context) < 0.95:
         question = generate_clarifying_question(context)
         user_response = get_response(question)
         context.update(user_response)
 
-    candidates = query_model_library(context)
+    candidates = query_lord_nexus_model_library(context)
     ranked = rank_models(candidates, context)
     selected = select_top_models(ranked, max=7)
-    explanations = [explain_model(m, context) for m in selected]
-    synthesis = synthesize_models(selected, explanations)
+    lattice = synthesize_cognitive_lattice(selected)
+    proteus_hints = derive_proteus_biases(lattice, context)
+    skillgraph_hints = derive_skillgraph_hints(lattice, context)
     reflection = generate_reflection_prompts(selected)
-    return compile_report(explanations, synthesis, reflection)
+    return {
+        "selected_models": selected,
+        "cognitive_lattice": lattice,
+        "proteus_hints": proteus_hints,
+        "skillgraph_hints": skillgraph_hints,
+        "reflection": reflection,
+    }
 ```
 
 ## Camelot Integration
 
 ### Merlin / Videneptus
 
-Use MMAP to select reasoning frameworks before planning.
+Use MMAP during Knight schematic design.
 
 ```text
 Titan Prompt
   -> MMAP model selection
-  -> Videneptus topology selection
-  -> Merlin plan synthesis
+  -> cognitive lattice
+  -> Proteus hints
+  -> SkillGraph hints
+  -> GENESIS forgeKnight()
 ```
-
-### Veritas
-
-Use MMAP to detect reasoning failures:
-
-- base-rate neglect,
-- confirmation bias,
-- weak causality,
-- opportunity-cost blindness,
-- missing second-order effects.
 
 ### Genesis
 
-Use MMAP to create Knight cognition profiles.
+GENESIS consumes MMAP output to create:
+
+- Proteus vector defaults,
+- SkillGraph4 tiers,
+- mythos anchors,
+- νKG Crystal,
+- activation prompt.
+
+### Veritas
+
+Veritas audits MMAP output for:
+
+- unsupported reasoning models,
+- bias overfitting,
+- weak causality,
+- missing inversion,
+- missing second-order effects.
 
 ### Ouroboros
 
-Store selected mental models as UKG anchors so future sessions can recover the reasoning path.
+OUROBOROS stores selected mental models as UKG anchors so future sessions can recover why a Knight behaves the way it does.
 
-## Core Model Starter Set
+## Core Model Starter Set for Knight Forging
 
 - First Principles Thinking
 - Second-Order Thinking
@@ -148,7 +182,25 @@ Store selected mental models as UKG anchors so future sessions can recover the r
 - Bayesian Updating
 - Margin of Safety
 - Compounding
+- Incentives
+- Bottlenecks
+- Feedback Loops
+- Network Effects
+
+## Runtime Adapter
+
+The TypeScript adapter lives at:
+
+```text
+src/merlin/mmap-knight-forge.ts
+```
+
+It exposes:
+
+```ts
+applyMmapToKnightForge(input)
+```
 
 ## Golden Rule
 
-Do not merely name mental models. Apply them, explain their limits, synthesize their interactions, and preserve the reasoning trace.
+MMAP does not forge the Knight. MMAP designs the cognition lattice Merlin hands to GENESIS.
