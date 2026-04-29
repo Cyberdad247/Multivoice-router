@@ -26,13 +26,17 @@ export function useGeminiLive(persona: Persona) {
   const stopAudio = useCallback(() => {
     if (processorRef.current) processorRef.current.disconnect();
     if (sourceRef.current) sourceRef.current.disconnect();
-    if (audioContextRef.current?.state !== 'closed') {
-      audioContextRef.current?.close();
-    }
+    if (audioContextRef.current?.state !== 'closed') audioContextRef.current?.close();
     audioContextRef.current = null;
     processorRef.current = null;
     sourceRef.current = null;
   }, []);
+
+  const disconnect = useCallback(() => {
+    sessionRef.current?.close();
+    setIsConnected(false);
+    stopAudio();
+  }, [stopAudio]);
 
   const playNextInQueue = useCallback(() => {
     if (audioQueueRef.current.length === 0 || isPlayingRef.current || !audioContextRef.current) return;
@@ -62,65 +66,67 @@ export function useGeminiLive(persona: Persona) {
       const governed = enforcePolicy(route);
       const result = await dispatchToEdge(governed);
 
-      if (result.status === 'approval_required') {
-        toast.warning(`Approval needed: ${result.message}`);
-      } else if (result.status === 'queued') {
-        toast.success(`Routed to ${result.targetNode}`);
-      }
+      if (result.status === 'approval_required') toast.warning(`Approval needed: ${result.message}`);
+      else if (result.status === 'queued') toast.success(`Routed to ${result.targetNode}`);
     } catch (error) {
       console.error('Jarvis dispatch error:', error);
       toast.error('Jarvis routing failed');
     }
   }, []);
 
+  const buildSourceContext = useCallback((p: Persona) => {
+    const fileSources = p.sources?.filter(s => s.type === 'file') || [];
+    if (fileSources.length === 0) return '';
+    return '\n\n### ATTACHED DOCUMENTS (NotebookLM Context):\n' + fileSources.map(s => `[Source: ${s.name}]\n${s.content}`).join('\n\n---\n\n');
+  }, []);
+
+  const buildTools = useCallback((p: Persona) => {
+    const urlSources = p.sources?.filter(s => s.type === 'url').map(s => s.url) || [];
+    return [
+      ...(urlSources.length > 0 ? [{ urlContext: { urls: urlSources } }] : []),
+      ...(p.bridgeConfig?.enabled ? [{
+        functionDeclarations: [{
+          name: 'query_bridge',
+          description: 'Query the linked Rust bridge on the user\'s Tailscale network to perform actions or retrieve device data.',
+          parameters: {
+            type: Type.OBJECT,
+            properties: {
+              path: { type: Type.STRING, description: 'The API path to query (e.g. /status, /sensors, /control)' },
+              method: { type: Type.STRING, description: 'HTTP method (GET, POST, etc.)' },
+              data: { type: Type.OBJECT, description: 'Payload for POST/PUT requests' }
+            },
+            required: ['path']
+          }
+        }]
+      }] : []),
+      {
+        functionDeclarations: [
+          { name: 'list_tailscale_devices', description: 'List all devices in the user\'s Tailscale network.', parameters: { type: Type.OBJECT, properties: {} } },
+          { name: 'get_rustdesk_info', description: 'Get connection information for the linked RustDesk remote desktop agent.', parameters: { type: Type.OBJECT, properties: {} } },
+          ...(p.notebookConfig?.enabled ? [
+            { name: 'query_cloud_brain', description: 'Read the contents of your linked Google Doc Cloud Brain.', parameters: { type: Type.OBJECT, properties: {} } },
+            {
+              name: 'write_to_cloud_brain',
+              description: 'Save a new thought, memory, or log entry to your persistent Cloud Brain.',
+              parameters: { type: Type.OBJECT, properties: { content: { type: Type.STRING, description: 'The information to save to the notebook.' } }, required: ['content'] }
+            }
+          ] : [])
+        ]
+      }
+    ];
+  }, []);
+
   const updateConfig = useCallback((newPersona: Persona) => {
     if (!sessionRef.current || !isConnected) return;
-
-    const urlSources = newPersona.sources?.filter(s => s.type === 'url').map(s => s.url) || [];
-    const fileSources = newPersona.sources?.filter(s => s.type === 'file') || [];
-    let sourceContext = '';
-
-    if (fileSources.length > 0) {
-      sourceContext = '\n\n### ATTACHED DOCUMENTS (NotebookLM Context):\n' +
-        fileSources.map(s => `[Source: ${s.name}]\n${s.content}`).join('\n\n---\n\n');
-    }
-
     sessionRef.current.sendRealtimeInput({
       config: {
         speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: newPersona.voice } } },
-        systemInstruction: newPersona.systemInstruction +
-          '\n\nYour memory includes: ' + newPersona.memory.join('. ') +
-          sourceContext +
-          '\n\nPlease use the provided documents and URLs to ground your responses. If asked about specific details from the sources, refer to them accurately.',
-        tools: [
-          ...(urlSources.length > 0 ? [{ urlContext: { urls: urlSources } }] : []),
-          ...(newPersona.bridgeConfig?.enabled ? [{
-            functionDeclarations: [{
-              name: 'query_bridge',
-              description: 'Query the linked Rust bridge on the user\'s Tailscale network to perform actions or retrieve device data.',
-              parameters: {
-                type: Type.OBJECT,
-                properties: {
-                  path: { type: Type.STRING, description: 'The API path to query (e.g. /status, /sensors, /control)' },
-                  method: { type: Type.STRING, description: 'HTTP method (GET, POST, etc.)' },
-                  data: { type: Type.OBJECT, description: 'Payload for POST/PUT requests' }
-                },
-                required: ['path']
-              }
-            }]
-          }] : []),
-          {
-            functionDeclarations: [
-              { name: 'list_tailscale_devices', description: 'List all devices in the user\'s Tailscale network.', parameters: { type: Type.OBJECT, properties: {} } },
-              { name: 'get_rustdesk_info', description: 'Get connection information for the linked RustDesk remote desktop agent.', parameters: { type: Type.OBJECT, properties: {} } }
-            ]
-          }
-        ],
+        systemInstruction: newPersona.systemInstruction + '\n\nYour memory includes: ' + newPersona.memory.join('. ') + buildSourceContext(newPersona) + '\n\nPlease use the provided documents and URLs to ground your responses. If asked about specific details from the sources, refer to them accurately.',
+        tools: buildTools(newPersona),
       }
     });
-
     toast.success(`Switched to ${newPersona.name}`);
-  }, [isConnected]);
+  }, [isConnected, buildSourceContext, buildTools]);
 
   const connect = useCallback(async () => {
     if (isConnecting || isConnected) return;
@@ -128,15 +134,7 @@ export function useGeminiLive(persona: Persona) {
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-      const urlSources = persona.sources?.filter(s => s.type === 'url').map(s => s.url) || [];
-      const fileSources = persona.sources?.filter(s => s.type === 'file') || [];
-      let sourceContext = '';
-
-      if (fileSources.length > 0) {
-        sourceContext = '\n\n### ATTACHED DOCUMENTS (NotebookLM Context):\n' +
-          fileSources.map(s => `[Source: ${s.name}]\n${s.content}`).join('\n\n---\n\n');
-      }
-
+      const sourceContext = buildSourceContext(persona);
       const sessionPromise = ai.live.connect({
         model: 'gemini-3.1-flash-live-preview',
         config: {
@@ -150,38 +148,7 @@ export function useGeminiLive(persona: Persona) {
             '\n\nPlease use the provided documents and URLs to ground your responses. If asked about specific details from the sources, refer to them accurately.',
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          tools: [
-            ...(urlSources.length > 0 ? [{ urlContext: { urls: urlSources } }] : []),
-            ...(persona.bridgeConfig?.enabled ? [{
-              functionDeclarations: [{
-                name: 'query_bridge',
-                description: 'Query the linked Rust bridge on the user\'s Tailscale network to perform actions or retrieve device data.',
-                parameters: {
-                  type: Type.OBJECT,
-                  properties: {
-                    path: { type: Type.STRING, description: 'The API path to query (e.g. /status, /sensors, /control)' },
-                    method: { type: Type.STRING, description: 'HTTP method (GET, POST, etc.)' },
-                    data: { type: Type.OBJECT, description: 'Payload for POST/PUT requests' }
-                  },
-                  required: ['path']
-                }
-              }]
-            }] : []),
-            {
-              functionDeclarations: [
-                { name: 'list_tailscale_devices', description: 'List all devices in the user\'s Tailscale network.', parameters: { type: Type.OBJECT, properties: {} } },
-                { name: 'get_rustdesk_info', description: 'Get connection information for the linked RustDesk remote desktop agent.', parameters: { type: Type.OBJECT, properties: {} } },
-                ...(persona.notebookConfig?.enabled ? [
-                  { name: 'query_cloud_brain', description: 'Read the contents of your linked Google Doc Cloud Brain.', parameters: { type: Type.OBJECT, properties: {} } },
-                  {
-                    name: 'write_to_cloud_brain',
-                    description: 'Save a new thought, memory, or log entry to your persistent Cloud Brain.',
-                    parameters: { type: Type.OBJECT, properties: { content: { type: Type.STRING, description: 'The information to save to the notebook.' } }, required: ['content'] }
-                  }
-                ] : [])
-              ]
-            }
-          ],
+          tools: buildTools(persona),
         },
         callbacks: {
           onopen: async () => {
@@ -197,7 +164,6 @@ export function useGeminiLive(persona: Persona) {
               let sum = 0;
               for (let i = 0; i < inputData.length; i++) sum += inputData[i] * inputData[i];
               setAudioLevel(Math.sqrt(sum / inputData.length));
-
               const int16Buffer = float32ToInt16(inputData);
               const base64Data = arrayBufferToBase64(int16Buffer);
               sessionRef.current?.sendRealtimeInput({ audio: { data: base64Data, mimeType: 'audio/pcm;rate=16000' } });
@@ -241,11 +207,7 @@ export function useGeminiLive(persona: Persona) {
               for (const call of toolCall.functionCalls) {
                 if (call.name === 'query_bridge') {
                   try {
-                    const response = await fetch('/api/bridge/query', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ ip: persona.bridgeConfig?.ip, port: persona.bridgeConfig?.port, protocol: persona.bridgeConfig?.protocol, ...call.args })
-                    });
+                    const response = await fetch('/api/bridge/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: persona.bridgeConfig?.ip, port: persona.bridgeConfig?.port, protocol: persona.bridgeConfig?.protocol, ...call.args }) });
                     const result = await response.json();
                     sessionRef.current?.sendToolResponse({ functionResponses: [{ name: 'query_bridge', response: { result }, id: call.id }] });
                   } catch (_error) {
@@ -264,13 +226,7 @@ export function useGeminiLive(persona: Persona) {
                 }
 
                 if (call.name === 'get_rustdesk_info') {
-                  sessionRef.current?.sendToolResponse({
-                    functionResponses: [{
-                      name: 'get_rustdesk_info',
-                      response: { enabled: persona.rustDeskConfig?.enabled || false, id: persona.rustDeskConfig?.id, server: persona.rustDeskConfig?.server, deepLink: `rustdesk://${persona.rustDeskConfig?.id}` },
-                      id: call.id
-                    }]
-                  });
+                  sessionRef.current?.sendToolResponse({ functionResponses: [{ name: 'get_rustdesk_info', response: { enabled: persona.rustDeskConfig?.enabled || false, id: persona.rustDeskConfig?.id, server: persona.rustDeskConfig?.server, deepLink: `rustdesk://${persona.rustDeskConfig?.id}` }, id: call.id }] });
                 }
 
                 if (call.name === 'query_cloud_brain') {
@@ -314,13 +270,7 @@ export function useGeminiLive(persona: Persona) {
       console.error('Failed to connect to Gemini Live:', error);
       setIsConnecting(false);
     }
-  }, [persona, stopAudio, playNextInQueue, isConnecting, isConnected, disconnect, dispatchTranscript]);
-
-  const disconnect = useCallback(() => {
-    sessionRef.current?.close();
-    setIsConnected(false);
-    stopAudio();
-  }, [stopAudio]);
+  }, [persona, stopAudio, playNextInQueue, isConnecting, isConnected, disconnect, dispatchTranscript, buildSourceContext, buildTools]);
 
   useEffect(() => () => disconnect(), [disconnect]);
 
