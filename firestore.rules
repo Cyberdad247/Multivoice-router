@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(oldData) { return isVerified() && oldData.ownerId == request.auth.uid; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // Persona Validation
+    function isValidPersona(data) {
+      return data.keys().hasAll(['id', 'name', 'role', 'ownerId'])
+        && data.id is string && data.id.size() <= 100
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.role is string && data.role.size() <= 100
+        && data.ownerId == request.auth.uid
+        && (data.voice == null || data.voice in ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'])
+        && (data.memory == null || (data.memory is list && data.memory.size() <= 20))
+        && (data.updatedAt == request.time);
+    }
+
+    // Transcript Validation
+    function isValidTranscript(data) {
+      return data.keys().hasAll(['id', 'personaId', 'ownerId'])
+        && data.id is string
+        && data.personaId is string
+        && data.ownerId == request.auth.uid
+        && (data.createdAt == request.time);
+    }
+
+    match /personas/{personaId} {
+      allow get: if isOwner(existing());
+      allow list: if isVerified() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidId(personaId) && isValidPersona(incoming()) && (incoming().id == personaId);
+      allow update: if isOwner(existing()) && isValidPersona(incoming()) 
+        && incoming().id == existing().id // Immutable ID
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'role', 'description', 'voice', 'systemInstruction', 
+          'attributes', 'memory', 'sources', 'notebookConfig', 
+          'bridgeConfig', 'rustDeskConfig', 'updatedAt'
+        ]);
+      allow delete: if isOwner(existing());
+    }
+
+    match /transcripts/{transcriptId} {
+      allow get: if isOwner(existing());
+      allow list: if isVerified() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidId(transcriptId) && isValidTranscript(incoming()) && (incoming().id == transcriptId);
+      // Transcripts are immutable in this flow
+      allow update, delete: if false;
+    }
+  }
+}

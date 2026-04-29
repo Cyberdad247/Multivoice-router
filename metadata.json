@@ -1,0 +1,5 @@
+{
+  "name": "PersonaLive: Multi-Voice AI",
+  "description": "A live, multi-voice synthesis app featuring distinct AI personas with unique memories and attributes, powered by Gemini Multimodal Live API.",
+  "requestFramePermissions": ["microphone"]
+}

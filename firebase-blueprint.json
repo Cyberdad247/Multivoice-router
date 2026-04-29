@@ -1,0 +1,102 @@
+{
+  "entities": {
+    "Persona": {
+      "title": "AI Persona",
+      "description": "Configuration for a specific AI persona including voice, instructions, and tools.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "description": { "type": "string" },
+        "voice": { "type": "string", "enum": ["Puck", "Charon", "Kore", "Fenrir", "Zephyr"] },
+        "systemInstruction": { "type": "string" },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "tone": { "type": "string" },
+            "expertise": { "type": "array", "items": { "type": "string" } },
+            "personality": { "type": "string" }
+          }
+        },
+        "memory": { "type": "array", "items": { "type": "string" } },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "type": { "type": "string", "enum": ["url", "file"] },
+              "name": { "type": "string" },
+              "content": { "type": "string" },
+              "url": { "type": "string" }
+            }
+          }
+        },
+        "notebookConfig": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "id": { "type": "string" },
+            "name": { "type": "string" },
+            "lastSynced": { "type": "string", "format": "date-time" }
+          }
+        },
+        "bridgeConfig": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "ip": { "type": "string" },
+            "port": { "type": "integer" },
+            "protocol": { "type": "string", "enum": ["http", "https"] }
+          }
+        },
+        "rustDeskConfig": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "id": { "type": "string" },
+            "password": { "type": "string" },
+            "server": { "type": "string" }
+          }
+        },
+        "ownerId": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "role", "ownerId"]
+    },
+    "Transcript": {
+      "title": "Conversation Transcript",
+      "description": "Log of a specific voice interaction session.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "personaId": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "role": { "type": "string", "enum": ["user", "model"] },
+              "text": { "type": "string" },
+              "timestamp": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "personaId", "ownerId"]
+    }
+  },
+  "firestore": {
+    "/personas/{personaId}": {
+      "schema": "Persona",
+      "description": "User created AI personalities."
+    },
+    "/transcripts/{transcriptId}": {
+      "schema": "Transcript",
+      "description": "History of voice conversations."
+    }
+  }
+}
