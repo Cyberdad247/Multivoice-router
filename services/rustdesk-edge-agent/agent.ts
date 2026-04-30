@@ -3,9 +3,15 @@ import fetch from 'node-fetch';
 const API = process.env.API_URL || 'http://localhost:3000';
 const NODE = 'rustdesk';
 
+interface EdgeCommand {
+  id: string;
+  action: string;
+}
+
 async function poll() {
   const res = await fetch(`${API}/api/commands?node=${NODE}`);
-  const cmds = await res.json();
+  const payload = await res.json();
+  const cmds = Array.isArray(payload) ? (payload as EdgeCommand[]) : [];
 
   for (const cmd of cmds) {
     const result = await execute(cmd);
@@ -18,7 +24,7 @@ async function poll() {
   }
 }
 
-async function execute(cmd: any) {
+async function execute(cmd: EdgeCommand) {
   switch (cmd.action) {
     case 'open_app':
       return { ok: true, note: 'open_app simulated' };

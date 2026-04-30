@@ -52,6 +52,7 @@ function edgeResponse(route: EdgeRoute, targetNode: string, message: string) {
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT || 3000);
+  const HOST = process.env.HOST || '::';
 
   app.use(cookieSession({
     name: 'session',
@@ -355,7 +356,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, HOST, () => {
     console.log(`Multivoice Router running on http://localhost:${PORT}`);
   });
 }
