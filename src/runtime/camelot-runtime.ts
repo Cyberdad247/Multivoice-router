@@ -10,6 +10,7 @@ import { createProvenanceAttestation } from '../provenance/attestation';
 import { buildLedgerEvent } from '../provenance/provenance-ledger';
 import { getCartridge, applyCartridgeToContext } from '../cartridges/cartridge-registry';
 import { buildPromptDependencyGraph, enforceAgentArmor } from '../security/agentarmor-pdg';
+import { applyHydratedCrystalToContext, detectHydrationCommand, hydrateUkgCrystal } from '../memory/ukg-hydration-engine';
 
 export interface CamelotRuntimeInput {
   input: string;
@@ -88,6 +89,12 @@ export async function runCamelotRuntime(input: CamelotRuntimeInput): Promise<Cam
   const warnings: string[] = [];
   let context = input.context || {};
 
+  if (detectHydrationCommand(input.input) || context.autoHydrateCrystal) {
+    const hydrated = hydrateUkgCrystal();
+    context = applyHydratedCrystalToContext(context, hydrated);
+    warnings.push(`UKG crystal hydrated: ${hydrated.snapshotId}`);
+  }
+
   const cartridge = detectCartridge(input.input);
   if (cartridge) {
     context = applyCartridgeToContext(context, cartridge);
@@ -128,10 +135,10 @@ export async function runCamelotRuntime(input: CamelotRuntimeInput): Promise<Cam
 
   const dag = buildDagFromRuntime(compiled, reasoning);
   const signature = signDag(dag, input.signingSecret, context.signedBy || 'sir_aurelius');
-  const attestation = createProvenanceAttestation({ envelope: signature, command: context.command || 'runtime', metadata: { cartridge: cartridge?.id } });
+  const attestation = createProvenanceAttestation({ envelope: signature, command: context.command || 'runtime', metadata: { cartridge: cartridge?.id, hydratedCrystalId: context.hydratedCrystalId } });
 
   const veritas = runVeritas({
-    content: { compiled, reasoning, attestation },
+    content: { compiled, reasoning, attestation, ukgCrystal: context.ukgCrystal },
     prd: context.prd,
     sources: context.sources,
     requiresCitations: context.requiresCitations,
@@ -156,12 +163,12 @@ export async function runCamelotRuntime(input: CamelotRuntimeInput): Promise<Cam
   });
 
   if (!antigravity.ok) {
-    const memory = runOuroboros({ rawState: { input: input.input, compiled, reasoning, veritas, aether, antigravity, attestation }, source: context.source || 'system', commandId: context.commandId });
+    const memory = runOuroboros({ rawState: { input: input.input, context, compiled, reasoning, veritas, aether, antigravity, attestation }, source: context.source || 'system', commandId: context.commandId });
     const ledgerEvent = buildLedgerEvent(attestation);
-    return { ok: false, stage: 'HITL_GATE', titan: compiled, reasoning, veritas, aether, antigravity, memory, ledgerEvent, warnings: ['Execution paused pending approval.'] };
+    return { ok: false, stage: 'HITL_GATE', titan: compiled, reasoning, veritas, aether, antigravity, memory, ledgerEvent, warnings: ['Execution paused pending approval.', ...warnings] };
   }
 
-  const memory = runOuroboros({ rawState: { input: input.input, compiled, reasoning, veritas, aether, antigravity, attestation }, source: context.source || 'system', commandId: context.commandId });
+  const memory = runOuroboros({ rawState: { input: input.input, context, compiled, reasoning, veritas, aether, antigravity, attestation }, source: context.source || 'system', commandId: context.commandId });
   const ledgerEvent = buildLedgerEvent(attestation);
 
   return { ok: true, stage: 'COMPLETE', titan: compiled, reasoning, veritas, aether, antigravity, memory, ledgerEvent, warnings };
