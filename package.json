@@ -10,12 +10,17 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "camelot:run": "tsx src/cli/camelot-run.ts",
+    "camelot:worker:dry": "tsx src/cli/camelot-worker-dry.ts",
+    "camelot:approve": "tsx src/cli/camelot-approve.ts",
+    "test": "tsx src/tests/smoke.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",
     "@fontsource-variable/geist": "^5.2.8",
     "@google/genai": "^1.49.0",
+    "@supabase/supabase-js": "^2.49.8",
     "@tailwindcss/vite": "^4.1.14",
     "@types/cookie-session": "^2.0.49",
     "@vitejs/plugin-react": "^5.0.4",
