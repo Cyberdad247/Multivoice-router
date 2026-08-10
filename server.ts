@@ -5,6 +5,12 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { google } from 'googleapis';
 import cookieSession from 'cookie-session';
+import { runBifrostCrossing } from './src/bifrost/bifrost-runtime';
+import { BIFROST_TRANSPORTS } from './src/bifrost/transport-registry';
+import { BIFROST_DEVICES, applyHeartbeat, isHeartbeatFresh } from './src/bifrost/device-registry';
+import { tickBifrostSupervisor } from './src/bifrost/autonomous-supervisor';
+import { forceRevoke } from './src/bifrost/bifrost-session';
+import type { BifrostCrossingRequest, BifrostDevice, BifrostSession } from './src/bifrost/types';
 
 dotenv.config();
 
@@ -20,6 +26,32 @@ type EdgeRoute = {
 };
 
 const pendingApprovals = new Map<string, EdgeRoute>();
+
+/**
+ * Bifrost state, held in-process for the same reason `pendingApprovals` is:
+ * this is the dev/single-instance server. Restarting drops every device
+ * heartbeat and live session, and multiple instances do not share state. A
+ * deployment with more than one instance must run services/bifrost-broker and
+ * point these handlers at it instead.
+ *
+ * Failing this way is safe rather than convenient: losing heartbeats makes
+ * every device look stale, and Heimdall denies crossings to stale devices.
+ */
+const bifrostDevices = new Map<string, BifrostDevice>(BIFROST_DEVICES.map(d => [d.deviceId, d]));
+const bifrostSessions = new Map<string, BifrostSession>();
+const pendingCrossings = new Map<string, BifrostCrossingRequest>();
+
+function bifrostSigningSecret(): string | undefined {
+  return process.env.CAMELOT_SIGNING_SECRET;
+}
+
+function currentDevices(): BifrostDevice[] {
+  return Array.from(bifrostDevices.values());
+}
+
+function currentSessions(): BifrostSession[] {
+  return Array.from(bifrostSessions.values());
+}
 
 function createCommandId(prefix = 'cmd') {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -246,6 +278,161 @@ async function startServer() {
     }
 
     return res.json({ accepted: true, status: 'queued', commandId, targetNode: route.targetNode, message: 'Command approved and queued for execution', route });
+  });
+
+  // --- Bifrost Bridge (Sir Heimdall) ------------------------------------
+  //
+  // Crossing requests never carry their own approval. A caller cannot set
+  // `approved` — high-risk crossings are parked here and must be resolved
+  // through /api/bifrost/crossing/approve, mirroring the edge approval flow.
+
+  app.get('/api/bifrost/transports', (_req, res) => {
+    res.json(BIFROST_TRANSPORTS);
+  });
+
+  app.get('/api/bifrost/devices', (_req, res) => {
+    const now = new Date();
+    res.json(
+      currentDevices().map(device => ({
+        ...device,
+        heartbeatFresh: isHeartbeatFresh(device, now),
+      }))
+    );
+  });
+
+  app.post('/api/bifrost/heartbeat', (req, res) => {
+    const { deviceId, gatekeeperFingerprint } = req.body || {};
+    const device = deviceId ? bifrostDevices.get(deviceId) : undefined;
+
+    if (!device) {
+      return res.status(404).json({ ok: false, error: `Unknown device '${deviceId}'.` });
+    }
+
+    // Server time, never the node's self-reported clock.
+    const updated = applyHeartbeat(device, new Date(), gatekeeperFingerprint);
+    bifrostDevices.set(updated.deviceId, updated);
+    res.json({ ok: true, deviceId: updated.deviceId, lastHeartbeatAt: updated.lastHeartbeatAt });
+  });
+
+  app.post('/api/bifrost/crossing', async (req, res) => {
+    const secret = bifrostSigningSecret();
+    if (!secret) {
+      return res.status(500).json({ ok: false, error: 'CAMELOT_SIGNING_SECRET is not configured.' });
+    }
+
+    const request: BifrostCrossingRequest = {
+      requestId: `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      deviceId: req.body?.deviceId,
+      transport: req.body?.transport,
+      fidelity: req.body?.fidelity,
+      scopes: Array.isArray(req.body?.scopes) ? req.body.scopes : [],
+      purpose: req.body?.purpose || '',
+      requestedBy: req.body?.requestedBy || 'dashboard',
+      requestedTtlSeconds: req.body?.requestedTtlSeconds,
+      source: 'dashboard',
+    };
+
+    if (!request.deviceId || !request.transport || !request.fidelity || !request.purpose) {
+      return res.status(400).json({
+        ok: false,
+        error: 'deviceId, transport, fidelity and purpose are required.',
+      });
+    }
+
+    const result = await runBifrostCrossing({
+      request,
+      signingSecret: secret,
+      devices: currentDevices(),
+      sessions: currentSessions(),
+      // Approval is never taken from the request body.
+      approved: false,
+    });
+
+    if (result.stage === 'HITL_GATE') {
+      pendingCrossings.set(request.requestId, request);
+      return res.json({ ...result, crossingId: request.requestId });
+    }
+
+    if (result.ok && result.session) {
+      bifrostSessions.set(result.session.envelope.sessionId, result.session);
+    }
+
+    res.status(result.ok ? 200 : 403).json(result);
+  });
+
+  app.get('/api/bifrost/crossing/pending', (_req, res) => {
+    res.json(Array.from(pendingCrossings.entries()).map(([crossingId, request]) => ({ crossingId, request })));
+  });
+
+  app.post('/api/bifrost/crossing/approve', async (req, res) => {
+    const secret = bifrostSigningSecret();
+    if (!secret) {
+      return res.status(500).json({ ok: false, error: 'CAMELOT_SIGNING_SECRET is not configured.' });
+    }
+
+    const { crossingId, decision, resolvedBy } = req.body || {};
+    const request = crossingId ? pendingCrossings.get(crossingId) : undefined;
+
+    if (!request) {
+      return res.status(404).json({ ok: false, error: 'Pending crossing not found.' });
+    }
+
+    pendingCrossings.delete(crossingId);
+
+    if (decision !== 'approved') {
+      return res.json({ ok: false, status: 'blocked', crossingId, message: 'Crossing denied at the approval gate.' });
+    }
+
+    // Re-run the full pipeline. Approval authorizes the crossing; it does not
+    // skip Gjallarhorn or Heimdall, so anything that changed since the request
+    // was parked is re-evaluated here.
+    const result = await runBifrostCrossing({
+      request,
+      signingSecret: secret,
+      devices: currentDevices(),
+      sessions: currentSessions(),
+      approved: true,
+      context: { signedBy: resolvedBy || 'operator' },
+    });
+
+    if (result.ok && result.session) {
+      bifrostSessions.set(result.session.envelope.sessionId, result.session);
+    }
+
+    res.status(result.ok ? 200 : 403).json(result);
+  });
+
+  app.get('/api/bifrost/sessions', (_req, res) => {
+    res.json(currentSessions());
+  });
+
+  app.post('/api/bifrost/sessions/revoke', (req, res) => {
+    const { sessionId, reason } = req.body || {};
+    const session = sessionId ? bifrostSessions.get(sessionId) : undefined;
+
+    if (!session) {
+      return res.status(404).json({ ok: false, error: 'Unknown session.' });
+    }
+
+    const revoked = forceRevoke(session, reason || 'revoked_by_operator');
+    bifrostSessions.set(sessionId, revoked);
+    res.json({ ok: true, session: revoked });
+  });
+
+  /** Run one supervisor tick: expire, reap, degrade and alarm. */
+  app.post('/api/bifrost/supervisor/tick', (req, res) => {
+    const tick = tickBifrostSupervisor({
+      devices: currentDevices(),
+      sessions: currentSessions(),
+      observations: Array.isArray(req.body?.observations) ? req.body.observations : undefined,
+      unhealthyTransports: Array.isArray(req.body?.unhealthyTransports) ? req.body.unhealthyTransports : undefined,
+    });
+
+    for (const session of tick.sessions) {
+      bifrostSessions.set(session.envelope.sessionId, session);
+    }
+
+    res.json(tick);
   });
 
   app.get('/api/google/drive/files', async (req, res) => {

@@ -39,6 +39,14 @@ npm run clean            # rm -rf dist
 npm run camelot:run -- "//PLAN build a safe patch"   # drive the full runtime once
 npm run camelot:worker:dry -- "screenshot desktop"   # in-memory queue + dry-run edge worker
 npm run camelot:approve -- <approvalId> approved <resolvedBy>   # scaffold only, see below
+npm run camelot:bifrost -- --help                    # drive one Bifrost crossing
+```
+
+The Bifrost subsystem also has Rust and Go services with their own toolchains:
+
+```bash
+cd services/heimdall-gatekeeper && cargo test    # 24 tests
+cd services/bifrost-broker && go vet ./... && go test ./...
 ```
 
 There is no test framework, no ESLint, and no Prettier. `npm run lint` is just `tsc --noEmit`.
@@ -100,6 +108,8 @@ src/
   types/                   Persona, Source, TailscaleDevice, diagnostics
   lib/                     firebase.ts, firestore.ts, audio-utils.ts, utils.ts (cn)
 
+  bifrost/                 Sir Heimdall: transport/device registries, guardian, Gjallarhorn
+                           alarms, session lifecycle, autonomous supervisor, crossing runtime
   runtime/                 camelot-runtime.ts (the pipeline), command queue adapters, worker contract
   anya/                    APEE input compiler, Titan prompt schema, ledger
   merlin/                  VIDENEPTUS reasoning, scoring, knight forge
@@ -117,7 +127,8 @@ src/
 
 components/GenesisTerminal.tsx   orphaned; see "Known state of the checks"
 config/personas/                 example knight persona override JSON
-services/                        rustdesk-edge-agent (TS), kinetic-edge/turboquant.rs (Rust, standalone)
+services/                        rustdesk-edge-agent (TS), kinetic-edge/turboquant.rs (Rust, standalone),
+                                 heimdall-gatekeeper (Rust crate), bifrost-broker (Go module)
 supabase/migrations/             camelot_commands / camelot_approvals / camelot_devices schema
 docs/                            ~35 architecture and spec documents
 firestore.rules, security_spec.md
@@ -149,6 +160,31 @@ never describe them as robust security.
 Risk vocabulary is split across two type systems that do not map onto each other automatically:
 `IntentRoute.riskLevel` is `'low' | 'medium' | 'high'`, while `CamelotCommandRecord.riskClass` is
 `L0_OBSERVE` … `L5_FORBIDDEN`. Keep them straight.
+
+## The Bifrost Bridge
+
+`src/bifrost/` is a second, parallel pipeline governing *remote access to physical machines*,
+guarded by **Sir Heimdall**. `runBifrostCrossing` stages are: `RESOLVE_DEVICE` → `GJALLARHORN`
+(alarms) → `HEIMDALL_DENIED` (the guardian) → ANTIGRAVITY → `HITL_GATE` → sign → attest, with
+the same early-return-on-failure discipline as `camelot-runtime.ts`.
+
+Three invariants hold it together, and changes must preserve them:
+
+- **Heimdall narrows; ANTIGRAVITY still decides.** An `ALLOW` verdict is permission to *ask*
+  the execution gate. `bifrost-runtime.ts` calls `runAntigravity` on every surviving crossing.
+- **The bridge is the tailnet.** Transports marked `requiresTailnet` are denied when the
+  device has no mesh address. There is no direct fallback.
+- **The supervisor may close the bridge autonomously, never widen it.** Failover is emitted as
+  `propose_failover` with `requiresReauthorization: true`.
+
+The session envelope's canonical signed form is duplicated in three languages
+(`src/bifrost/session-token.ts`, `services/heimdall-gatekeeper/src/token.rs`,
+`services/bifrost-broker/internal/token/token.go`) and pinned by a **shared test vector**
+asserted in all three suites. If you change the canonical string, scope normalization, or the
+timestamp format, you must change all three or the tests fail — which is the point.
+
+Full design and the honest scope of what is implemented:
+`docs/architecture/BIFROST_HEIMDALL_ARCH_GUARDIAN.md`.
 
 ## Conventions
 
@@ -199,6 +235,14 @@ Risk vocabulary is split across two type systems that do not map onto each other
   genuinely sensitive values to that file or to any other committed JSON.
 - **`metadata.json` requests microphone permission** for the AI Studio applet host; it is not a
   build input.
+- **The Bifrost is a control plane, not a driver.** Nothing in `src/bifrost/` or
+  `services/heimdall-gatekeeper/` launches or configures Sunshine, Moonlight, RustDesk, the
+  Tauri agent, or Sonar. The gatekeeper *authorizes* actions; nothing yet performs them.
+  `BIFROST_DEVICES` is a seed array, not a queried tailnet, and is not joined to the existing
+  `/api/tailscale/devices` endpoint.
+- **Bifrost server state is in-process**, exactly like `pendingApprovals`. A restart drops
+  heartbeats and sessions. This fails *safe* — devices then look stale and Heimdall denies
+  crossings — but multi-instance deployments need `services/bifrost-broker`.
 
 ## Safety posture
 

@@ -3,6 +3,7 @@ export type IntentType =
   | 'android_action'
   | 'browser_action'
   | 'cli_action'
+  | 'bridge_action'
   | 'approval_response'
   | 'memory_query';
 
@@ -14,8 +15,34 @@ export interface IntentRoute {
   payload: Record<string, any>;
 }
 
+const BRIDGE_TERMS = [
+  'remote desktop',
+  'remote into',
+  'take over my',
+  'screen share',
+  'share my screen',
+  'stream my desktop',
+  'bifrost',
+  'heimdall',
+  'rustdesk',
+  'moonlight',
+  'sunshine',
+];
+
 export function routeIntent(transcript: string): IntentRoute {
   const text = transcript.toLowerCase();
+
+  // Checked before the android branch: phrases like "open my desktop remotely"
+  // would otherwise be captured by the bare 'open' keyword below.
+  if (BRIDGE_TERMS.some(term => text.includes(term))) {
+    return {
+      intent: 'bridge_action',
+      targetNode: 'heimdall',
+      riskLevel: 'high',
+      requiresApproval: true,
+      payload: { crossing: transcript }
+    };
+  }
 
   if (text.includes('open') || text.includes('tap') || text.includes('android')) {
     return {
