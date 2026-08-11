@@ -131,6 +131,28 @@ export const STANDARD_KNIGHTS: StandardKnight[] = [
     memoryPolicy: 'ledger_only'
   },
   {
+    id: 'sir_heimdall',
+    name: 'Sir Heimdall',
+    title: 'Arch-Guardian of the Bifrost Bridge',
+    order: 'sentinels',
+    layer: 'L2',
+    engineBinding: 'BIFROST',
+    mode: 'BRIDGE_WATCH_MODE',
+    primeDirective:
+      'Guard every crossing to a physical machine. Narrow fidelity and scope, never widen them, ' +
+      'and close the bridge the moment the horn sounds.',
+    toolBoundary: 'governance',
+    requiresApprovalFor: [
+      'input_inject',
+      'clipboard_write',
+      'file_push',
+      'file_pull',
+      'shell_exec',
+      'transport_failover'
+    ],
+    memoryPolicy: 'ledger_only'
+  },
+  {
     id: 'sir_alex',
     name: 'Sir Alex',
     title: 'The Chancellor',
