@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cyberdad247/multivoice-router/services/bifrost-broker/internal/journal"
 	"github.com/cyberdad247/multivoice-router/services/bifrost-broker/internal/registry"
 	"github.com/cyberdad247/multivoice-router/services/bifrost-broker/internal/token"
 )
@@ -27,6 +28,7 @@ type Notifier interface {
 // Server wires the registry and its dependencies into HTTP handlers.
 type Server struct {
 	Registry      *registry.Registry
+	Journal       *journal.Store
 	SigningSecret string
 	BrokerToken   string
 	Notifier      Notifier
@@ -37,6 +39,7 @@ type Server struct {
 func New(reg *registry.Registry, signingSecret, brokerToken string, notifier Notifier) *Server {
 	return &Server{
 		Registry:      reg,
+		Journal:       journal.NewStore(),
 		SigningSecret: signingSecret,
 		BrokerToken:   brokerToken,
 		Notifier:      notifier,
@@ -53,6 +56,9 @@ func (s *Server) Routes() *http.ServeMux {
 	mux.HandleFunc("POST /v1/sessions", s.authed(s.handleNoteSession))
 	mux.HandleFunc("GET /v1/sessions", s.authed(s.handleListSessions))
 	mux.HandleFunc("POST /v1/sessions/revoke", s.authed(s.handleRevoke))
+	mux.HandleFunc("POST /v1/journal", s.authed(s.handleAppendJournal))
+	mux.HandleFunc("GET /v1/journal", s.authed(s.handleReadJournal))
+	mux.HandleFunc("GET /v1/journal/verify", s.authed(s.handleVerifyJournal))
 	return mux
 }
 
@@ -115,6 +121,67 @@ func (s *Server) handleHeartbeat(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDevices(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "devices": s.Registry.Devices(s.now())})
+}
+
+// handleAppendJournal stores entries after recomputing every hash itself.
+//
+// A batch that would break the chain is refused whole. Partially accepting it
+// would destroy exactly the property the journal exists to provide.
+func (s *Server) handleAppendJournal(w http.ResponseWriter, r *http.Request) {
+	var entries []journal.Entry
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<20)).Decode(&entries); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "malformed journal batch"})
+		return
+	}
+	if len(entries) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "empty batch"})
+		return
+	}
+
+	verification, err := s.Journal.Append(entries)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"ok":           false,
+			"error":        err.Error(),
+			"verification": verification,
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":       true,
+		"appended": len(entries),
+		"head":     s.Journal.Head(),
+	})
+}
+
+func (s *Server) handleReadJournal(w http.ResponseWriter, r *http.Request) {
+	tenant := r.URL.Query().Get("tenant")
+
+	// Tenant scoping is opt-in by query, but an empty tenant must never be
+	// treated as "match every entry with no tenant set".
+	entries := s.Journal.All()
+	if tenant != "" {
+		entries = s.Journal.ForTenant(tenant)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "entries": entries, "head": s.Journal.Head()})
+}
+
+func (s *Server) handleVerifyJournal(w http.ResponseWriter, _ *http.Request) {
+	verification := s.Journal.Verify()
+
+	status := http.StatusOK
+	if !verification.OK {
+		// A broken chain is a server-side integrity failure, not a bad request.
+		status = http.StatusConflict
+	}
+
+	writeJSON(w, status, map[string]any{
+		"ok":           verification.OK,
+		"verification": verification,
+		"entries":      s.Journal.Len(),
+	})
 }
 
 // handleNoteSession accepts an envelope minted by the control plane. The broker

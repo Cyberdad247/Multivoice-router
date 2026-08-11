@@ -143,6 +143,140 @@ re-verifies and stores issued envelopes, and fans revocations out to nodes. It h
 of its own. It stamps heartbeats with **server** time — a node claiming a future timestamp
 cannot extend its own liveness.
 
+## Per-node desktop provisioning
+
+`src/bifrost/desktop/` turns a granted envelope into the concrete configuration each upstream
+tool needs. Two properties matter more than the rest:
+
+**Every capability flag is derived from the granted scopes, never from operator preference.**
+If `input_inject` was not granted, the RustDesk config sets `enable-keyboard = false`, the
+Sunshine config sets `keyboard = disabled`, and the Moonlight client is launched with
+`--no-keyboard`. The node gatekeeper would refuse the action anyway — but a session should not
+be *configured* with a capability it was never granted.
+
+**A plan is declarative, never a command string.** `buildProvisioningPlan` emits steps drawn
+from four verbs (`write_config`, `start_transport`, `stop_transport`, `apply_stream_profile`)
+with relative targets. Nothing in a crossing request reaches a shell.
+
+### The dynamic stream profile
+
+`negotiateStreamProfile` picks codec, resolution, frame rate and bitrate from the node's
+reported encoder capability, the granted fidelity, and measured link telemetry. The bitrate
+model is anchored on Moonlight's published default — 1080p60 H.264 at ~20 Mbps — expressed as
+bits per pixel per second, so every other rung falls out of the same curve:
+
+| Codec | bits/pixel/s | 1080p60 | 4K60 |
+|---|---|---|---|
+| H.264 | 0.160 | ~19.9 Mbps | ~79.6 Mbps |
+| HEVC | 0.104 | ~12.9 Mbps | ~51.8 Mbps |
+| AV1 | 0.080 | ~10.0 Mbps | ~39.8 Mbps |
+
+`adaptStreamProfile` runs one step per telemetry sample and is deliberately **asymmetric**: it
+degrades on a single congested sample, and recovers only after three consecutive clean ones.
+Dropping quality is cheap and reversible; oscillating is neither. Frame rate is shed before
+resolution, because it is the less visually costly loss.
+
+Without a reported encoder, provisioning falls back to `CONSERVATIVE_CAPABILITY` (1080p60,
+H.264, software) and says so in the plan's warnings.
+
+## Monitoring
+
+`src/bifrost/observability/` holds two separate concerns that are easy to conflate:
+
+**The session journal** is hash-chained. Each entry carries the SHA-256 of the previous one, so
+editing or removing an entry breaks the chain from that point forward, and `verifyJournalChain`
+locates the break. This is an *integrity* mechanism, not a secrecy one — an attacker who can
+rewrite the whole file can also recompute the chain, which is why the head hash should be
+anchored into the provenance ledger.
+
+The chain is verified independently by the Go broker (`services/bifrost-broker/internal/journal`),
+which recomputes every hash rather than trusting what it was sent, and refuses a batch whole
+rather than storing a partially-valid one. Detail objects are canonicalized with recursively
+sorted keys so both languages produce identical hashes; that canonicalization is pinned by a
+shared vector, like the session envelope.
+
+**Node telemetry** drives three things that are kept apart: stream adaptation, health scoring
+for failover, and security alarms. The security rule that matters is `scope_drift` — a node
+reporting an active scope its envelope never granted means enforcement has failed somewhere,
+and that halts the bridge rather than merely degrading it.
+
+## Camelot Defense Redteam
+
+`src/bifrost/redteam/` runs adversarial analysis **of your own configuration**. Every probe
+reads config and derives consequences; nothing touches a remote host or tests a credential, so
+it is safe to run continuously against production.
+
+| Probe | Category | Asks |
+|---|---|---|
+| `blast_radius` | blast_radius | If one envelope were minted for this device, what would the holder be able to do? |
+| `shared_secret` | blast_radius | How many nodes does a single leaked secret unlock? |
+| `off_mesh_device` | exposure | Is an enrolled device reachable outside the tailnet? |
+| `sensor_coverage` | observability | Can Gjallarhorn actually see the devices that matter most? |
+| `stale_gatekeeper` | observability | Which enrolled nodes are not reporting? |
+| `policy_drift` | policy_drift | Does a device permit a fidelity whose scopes it entirely denies? |
+| `transport_fanout` | policy_drift | Does a device list transports it cannot use? |
+| `session_hygiene` | session_hygiene | Is anything still live that should have been closed? |
+| `journal_integrity` | integrity | Has the session journal been edited? |
+
+The most useful output is the per-device blast radius: the maximal scope set someone would hold
+if a single envelope were minted for that device. That is the consequence of a leaked signing
+secret, stated per node rather than in the abstract.
+
+Critical findings become **halting** Gjallarhorn alarms. A broken journal chain or a session
+running past its envelope means an invariant has already failed, and the bridge should close
+rather than wait for someone to read a report. High findings become warnings, which escalate
+new crossings to requiring approval.
+
+```bash
+npm run camelot:redteam -- --simulate-heartbeat        # text report
+npm run camelot:redteam -- --json --min high           # machine-readable
+npm run camelot:redteam -- --list                      # probe registry
+# exit 0 clean · 1 findings · 2 critical (halt recommended)
+```
+
+## Private CI/CD for clients
+
+`src/bifrost/cicd/` runs client pipelines on client nodes, through the bridge.
+
+**Every stage opens its own crossing.** A pipeline does not get one long-lived session holding
+the union of every scope it will ever need. A build stage gets `shell_exec`; the publish stage
+that follows gets `file_push`; neither holds the other's.
+
+**Tenant isolation fails closed.** A stage targeting a device whose `tenantId` does not match
+the pipeline's is refused — and so is a stage targeting a device with *no* `tenantId` at all.
+House devices are never reachable from a client pipeline.
+
+### Hash-pinned pre-authorization
+
+CI is useless if a human must approve every run, and dangerous if nobody approves anything. The
+resolution: a human approves a **definition**, not a run.
+
+`authorizePipeline` produces a signed grant carrying the pipeline's hash, a scope ceiling, a
+device allowlist, a runs-per-hour limit and an expiry. Runs of that exact definition then
+proceed unattended. Change one command, add one step, retarget one device — the hash changes,
+the grant no longer matches, and the pipeline is back in front of a human:
+
+```
+Grant rejected: Pipeline definition has changed since it was approved.
+Approved 4dbf91d28996…, now aaf73bc8a498…. Re-approval required.
+```
+
+A grant cannot be issued that is narrower on paper than in effect: `authorizePipeline` refuses
+when the pipeline needs scopes beyond its own ceiling or targets devices outside its allowlist.
+
+This is the only place in the bridge where something at L4 runs without a per-action human
+decision, and it is deliberately the narrowest hole that is still useful: a specific frozen
+definition, on named devices, at a bounded rate, until a stated date. Heimdall and Gjallarhorn
+still rule on every stage, so a stale node or a sounding alarm stops the run regardless of the
+grant.
+
+```bash
+npm run camelot:pipeline -- validate  --pipeline config/pipelines/acme-build.example.json
+npm run camelot:pipeline -- authorize --pipeline <file> --by operator --days 30 > grant.json
+npm run camelot:pipeline -- plan      --pipeline <file> --grant grant.json
+npm run camelot:pipeline -- run       --pipeline <file> --grant grant.json
+```
+
 ## Running it
 
 ```bash
@@ -173,6 +307,14 @@ HTTP surface on the app server (`server.ts`):
 | GET | `/api/bifrost/sessions` | Live sessions |
 | POST | `/api/bifrost/sessions/revoke` | Revoke a session |
 | POST | `/api/bifrost/supervisor/tick` | Run one autonomous supervisor tick |
+| POST | `/api/bifrost/provision` | Build a provisioning (or teardown) plan for a session |
+| POST | `/api/bifrost/telemetry` | Ingest node telemetry; returns health and alarms |
+| GET | `/api/bifrost/journal` | Journal entries, optionally `?tenant=` scoped |
+| GET | `/api/bifrost/journal/verify` | Verify the hash chain (409 when broken) |
+| POST | `/api/bifrost/redteam` | Run the posture audit |
+| POST | `/api/bifrost/pipelines/authorize` | Issue a hash-pinned pipeline grant |
+| POST | `/api/bifrost/pipelines/plan` | Plan a run without executing it |
+| POST | `/api/bifrost/pipelines/run` | Execute a run under a grant |
 
 `POST /api/bifrost/crossing` **ignores `approved` in the request body.** Approval is only
 possible via the separate approve endpoint, so a caller cannot self-approve an L4 crossing.
@@ -184,11 +326,21 @@ the alarm rules, the session state machine, the supervisor reducer, envelope sig
 cross-language verification, the Rust gatekeeper's enforcement, the Go broker's registry and
 revocation fan-out, and the Express endpoints.
 
-**Not real yet — this is a control plane, not a driver:**
+**Not real yet:**
 
-- Nothing here launches or configures Sunshine, Moonlight, RustDesk, the Tauri agent, or
-  Sonar. The gatekeeper authorizes actions; wiring an authorized action to an actual process
-  is unimplemented.
+- **Config is written; processes are not started.** The gatekeeper validates a provisioning
+  plan and writes the Sunshine/RustDesk/agent config files under its config root. It does
+  *not* launch or stop the transport — `start_transport` and `stop_transport` are validated
+  and recorded, and a supervisor unit is expected to act on the written config. Launching a
+  process is the one step that genuinely needs local operator policy, and a half-built version
+  would be worse than none.
+- Stream telemetry is consumed but not produced: nothing yet samples RTT, loss or encoder
+  stats from a running Sunshine or RustDesk session and posts it to `/api/bifrost/telemetry`.
+- The Redteam audits configuration only. It does not scan the network, probe ports, or test
+  whether a node's own authentication actually holds.
+- Pipeline steps are planned, gated and journaled, but the runner that executes a step's
+  command on the node does not exist yet — `executePipelineRun` opens the crossing for each
+  stage and stops there.
 - `BIFROST_DEVICES` is a seed array in `device-registry.ts`, not a queried tailnet. The
   existing `/api/tailscale/devices` endpoint is not yet joined to it.
 - Sonar flow matrices are consumed through `normalizeSonarFlows`, but nothing exports them

@@ -72,6 +72,11 @@ export interface BifrostDevice {
   deviceId: string;
   name: string;
   kind: BifrostDeviceKind;
+  /**
+   * Owning tenant. A device with no tenantId is a house device and is never
+   * targetable by a client pipeline — tenant isolation fails closed.
+   */
+  tenantId?: string;
   /** MagicDNS name on the tailnet. Absence means the device is not mesh-reachable. */
   tailscaleName?: string;
   /** Tailnet-assigned addresses. Used to prove a peer is inside the mesh. */

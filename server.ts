@@ -10,6 +10,12 @@ import { BIFROST_TRANSPORTS } from './src/bifrost/transport-registry';
 import { BIFROST_DEVICES, applyHeartbeat, isHeartbeatFresh } from './src/bifrost/device-registry';
 import { tickBifrostSupervisor } from './src/bifrost/autonomous-supervisor';
 import { forceRevoke } from './src/bifrost/bifrost-session';
+import { buildProvisioningPlan, buildTeardownPlan } from './src/bifrost/desktop/node-provisioner';
+import { SessionJournal } from './src/bifrost/observability/session-journal';
+import { assessTelemetry, telemetryAlarms } from './src/bifrost/observability/node-telemetry';
+import { runRedteam, redteamAlarms, formatRedteamReport } from './src/bifrost/redteam/redteam-runner';
+import { authorizePipeline } from './src/bifrost/cicd/pipeline-authorization';
+import { executePipelineRun, planPipelineRun, PipelineRunRecord } from './src/bifrost/cicd/pipeline-runtime';
 import type { BifrostCrossingRequest, BifrostDevice, BifrostSession } from './src/bifrost/types';
 
 dotenv.config();
@@ -40,6 +46,8 @@ const pendingApprovals = new Map<string, EdgeRoute>();
 const bifrostDevices = new Map<string, BifrostDevice>(BIFROST_DEVICES.map(d => [d.deviceId, d]));
 const bifrostSessions = new Map<string, BifrostSession>();
 const pendingCrossings = new Map<string, BifrostCrossingRequest>();
+const bifrostJournal = new SessionJournal();
+const pipelineRunHistory: PipelineRunRecord[] = [];
 
 function bifrostSigningSecret(): string | undefined {
   return process.env.CAMELOT_SIGNING_SECRET;
@@ -433,6 +441,206 @@ async function startServer() {
     }
 
     res.json(tick);
+  });
+
+  // --- Per-node desktop provisioning ------------------------------------
+
+  app.post('/api/bifrost/provision', (req, res) => {
+    const { sessionId, capability, link, hostAddress, preferred, teardown } = req.body || {};
+    const session = sessionId ? bifrostSessions.get(sessionId) : undefined;
+
+    if (!session) {
+      return res.status(404).json({ ok: false, error: 'Unknown session.' });
+    }
+
+    try {
+      const plan = teardown
+        ? buildTeardownPlan(session.envelope)
+        : buildProvisioningPlan({ envelope: session.envelope, capability, link, hostAddress, preferred });
+
+      bifrostJournal.append({
+        kind: 'session_provisioned',
+        actor: 'server',
+        summary: `${plan.steps.length} provisioning step(s) for ${plan.transport}`,
+        sessionId: session.envelope.sessionId,
+        deviceId: session.envelope.deviceId,
+        transport: session.envelope.transport,
+        scopes: session.envelope.scopes,
+        detail: { steps: plan.steps.map(s => s.verb), teardown: Boolean(teardown) },
+      });
+
+      res.json({ ok: true, plan });
+    } catch (error: any) {
+      res.status(400).json({ ok: false, error: error?.message || String(error) });
+    }
+  });
+
+  // --- Monitoring --------------------------------------------------------
+
+  app.post('/api/bifrost/telemetry', (req, res) => {
+    const report = req.body;
+    if (!report?.deviceId || !report?.link) {
+      return res.status(400).json({ ok: false, error: 'deviceId and link are required.' });
+    }
+
+    const session = report.sessionId ? bifrostSessions.get(report.sessionId) : undefined;
+    const assessment = assessTelemetry(report);
+    const alarms = telemetryAlarms(report, session?.envelope.scopes || []);
+
+    bifrostJournal.append({
+      kind: 'telemetry_sampled',
+      actor: report.deviceId,
+      summary: `health=${assessment.health} score=${assessment.score}`,
+      sessionId: report.sessionId,
+      deviceId: report.deviceId,
+      detail: { findings: assessment.findings, alarms: alarms.map(a => a.rule) },
+    });
+
+    res.json({ ok: true, assessment, alarms });
+  });
+
+  app.get('/api/bifrost/journal', (req, res) => {
+    const tenant = typeof req.query.tenant === 'string' ? req.query.tenant : undefined;
+    res.json({
+      ok: true,
+      entries: tenant ? bifrostJournal.forTenant(tenant) : bifrostJournal.all(),
+      head: bifrostJournal.head(),
+    });
+  });
+
+  app.get('/api/bifrost/journal/verify', (_req, res) => {
+    const verification = bifrostJournal.verify();
+    res.status(verification.ok ? 200 : 409).json({ ok: verification.ok, verification });
+  });
+
+  // --- Camelot Defense Redteam ------------------------------------------
+
+  app.post('/api/bifrost/redteam', (req, res) => {
+    const report = runRedteam(
+      {
+        devices: currentDevices(),
+        sessions: currentSessions(),
+        journal: bifrostJournal.all(),
+        // The current design shares one symmetric secret across every node.
+        sharedSigningSecret: true,
+      },
+      { only: Array.isArray(req.body?.only) ? req.body.only : undefined, minSeverity: req.body?.minSeverity }
+    );
+
+    for (const critical of report.findings.filter(f => f.severity === 'critical')) {
+      bifrostJournal.append({
+        kind: 'redteam_finding',
+        actor: 'camelot_redteam',
+        summary: critical.title,
+        deviceId: critical.deviceId,
+        sessionId: critical.sessionId,
+        detail: { probeId: critical.probeId, remediation: critical.remediation },
+      });
+    }
+
+    res.json({
+      ok: report.ok,
+      report,
+      alarms: redteamAlarms(report),
+      text: req.body?.format === 'text' ? formatRedteamReport(report) : undefined,
+    });
+  });
+
+  // --- Private CI/CD -----------------------------------------------------
+
+  app.post('/api/bifrost/pipelines/authorize', (req, res) => {
+    const secret = bifrostSigningSecret();
+    if (!secret) {
+      return res.status(500).json({ ok: false, error: 'CAMELOT_SIGNING_SECRET is not configured.' });
+    }
+
+    const { pipeline, limits, approvedBy } = req.body || {};
+    if (!pipeline || !limits || !approvedBy) {
+      return res.status(400).json({ ok: false, error: 'pipeline, limits and approvedBy are required.' });
+    }
+
+    const issued = authorizePipeline({ pipeline, limits, approvedBy, secret });
+    if (!issued.ok) {
+      return res.status(400).json({ ok: false, errors: issued.errors });
+    }
+
+    bifrostJournal.append({
+      kind: 'crossing_approved',
+      actor: approvedBy,
+      summary: `Pipeline '${pipeline.pipelineId}' authorized`,
+      tenantId: pipeline.tenantId,
+      detail: { grantId: issued.grant!.grantId, pipelineHash: issued.grant!.pipelineHash },
+    });
+
+    res.json({ ok: true, grant: issued.grant });
+  });
+
+  app.post('/api/bifrost/pipelines/plan', (req, res) => {
+    const secret = bifrostSigningSecret();
+    if (!secret) {
+      return res.status(500).json({ ok: false, error: 'CAMELOT_SIGNING_SECRET is not configured.' });
+    }
+
+    const { pipeline, grant } = req.body || {};
+    if (!pipeline || !grant) {
+      return res.status(400).json({ ok: false, error: 'pipeline and grant are required.' });
+    }
+
+    const plan = planPipelineRun({
+      pipeline,
+      grant,
+      secret,
+      devices: currentDevices(),
+      recentRuns: pipelineRunHistory,
+    });
+
+    res.status(plan.ok ? 200 : 400).json(plan);
+  });
+
+  app.post('/api/bifrost/pipelines/run', async (req, res) => {
+    const secret = bifrostSigningSecret();
+    if (!secret) {
+      return res.status(500).json({ ok: false, error: 'CAMELOT_SIGNING_SECRET is not configured.' });
+    }
+
+    const { pipeline, grant } = req.body || {};
+    if (!pipeline || !grant) {
+      return res.status(400).json({ ok: false, error: 'pipeline and grant are required.' });
+    }
+
+    const result = await executePipelineRun({
+      pipeline,
+      grant,
+      secret,
+      signingSecret: secret,
+      devices: currentDevices(),
+      sessions: currentSessions(),
+      recentRuns: pipelineRunHistory,
+    });
+
+    // Only a run that actually opened a crossing counts against the rate limit.
+    if (result.outcomes.length > 0) {
+      pipelineRunHistory.push({
+        runId: result.runId,
+        pipelineId: result.pipelineId,
+        tenantId: result.tenantId,
+        startedAt: result.startedAt,
+      });
+    }
+
+    for (const outcome of result.outcomes) {
+      bifrostJournal.append({
+        kind: 'pipeline_step',
+        actor: `pipeline:${result.pipelineId}`,
+        summary: `stage ${outcome.stageId} → ${outcome.stage}`,
+        tenantId: result.tenantId,
+        deviceId: outcome.deviceId,
+        sessionId: outcome.sessionId,
+        detail: { ok: outcome.ok, errors: outcome.errors },
+      });
+    }
+
+    res.status(result.ok ? 200 : 400).json(result);
   });
 
   app.get('/api/google/drive/files', async (req, res) => {

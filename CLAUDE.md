@@ -40,6 +40,8 @@ npm run camelot:run -- "//PLAN build a safe patch"   # drive the full runtime on
 npm run camelot:worker:dry -- "screenshot desktop"   # in-memory queue + dry-run edge worker
 npm run camelot:approve -- <approvalId> approved <resolvedBy>   # scaffold only, see below
 npm run camelot:bifrost -- --help                    # drive one Bifrost crossing
+npm run camelot:redteam -- --simulate-heartbeat      # audit your own bridge config
+npm run camelot:pipeline -- validate --pipeline <f>  # private CI/CD over the bridge
 ```
 
 The Bifrost subsystem also has Rust and Go services with their own toolchains:
@@ -110,6 +112,11 @@ src/
 
   bifrost/                 Sir Heimdall: transport/device registries, guardian, Gjallarhorn
                            alarms, session lifecycle, autonomous supervisor, crossing runtime
+    desktop/               stream profile negotiation/adaptation, Sunshine/Moonlight/RustDesk
+                           config generation, declarative provisioning plans
+    observability/         hash-chained session journal, node telemetry and health scoring
+    redteam/               Camelot Defense Redteam: config attack-path probes and runner
+    cicd/                  private CI/CD: pipeline schema, hash-pinned grants, run planning
   runtime/                 camelot-runtime.ts (the pipeline), command queue adapters, worker contract
   anya/                    APEE input compiler, Titan prompt schema, ledger
   merlin/                  VIDENEPTUS reasoning, scoring, knight forge
@@ -182,6 +189,24 @@ The session envelope's canonical signed form is duplicated in three languages
 `services/bifrost-broker/internal/token/token.go`) and pinned by a **shared test vector**
 asserted in all three suites. If you change the canonical string, scope normalization, or the
 timestamp format, you must change all three or the tests fail — which is the point.
+
+Four subsystems sit on top of the bridge, each with its own invariant:
+
+- **`desktop/`** — capability flags in every generated Sunshine/Moonlight/RustDesk config are
+  derived from the *granted scopes*, never from operator preference. Provisioning plans use
+  four declarative verbs and relative targets; nothing in a crossing request reaches a shell.
+  Stream adaptation is asymmetric on purpose: degrade on one bad sample, recover after three
+  clean ones.
+- **`observability/`** — the journal is hash-chained and independently re-verified by the Go
+  broker. Detail objects canonicalize with sorted keys in both languages, pinned by a shared
+  vector. The `scope_drift` telemetry rule (a node reporting a scope it was not granted) halts
+  the bridge rather than degrading it.
+- **`redteam/`** — configuration analysis only. Probes read config and derive consequences;
+  none touches a remote host or tests a credential, so the auditor is safe to run continuously.
+  Critical findings become halting alarms.
+- **`cicd/`** — human approval is per *definition*, not per run. A grant pins the pipeline by
+  hash; editing any command invalidates it. Each stage opens its own crossing with only its own
+  scopes, and tenant isolation refuses devices with no `tenantId` as well as mismatched ones.
 
 Full design and the honest scope of what is implemented:
 `docs/architecture/BIFROST_HEIMDALL_ARCH_GUARDIAN.md`.

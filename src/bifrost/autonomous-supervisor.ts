@@ -49,6 +49,8 @@ export interface SupervisorInput {
   devices: BifrostDevice[];
   sessions: BifrostSession[];
   observations?: SonarFlowObservation[];
+  /** Alarms from node telemetry and the Redteam, folded into this tick. */
+  extraAlarms?: GjallarhornAlarm[];
   /** Transports currently reporting unhealthy, e.g. Sunshine host down. */
   unhealthyTransports?: BifrostTransportId[];
   now?: Date;
@@ -71,6 +73,7 @@ export function tickBifrostSupervisor(input: SupervisorInput): SupervisorTick {
     devices: input.devices,
     sessions: input.sessions,
     observations: input.observations,
+    extraAlarms: input.extraAlarms,
     now,
   });
 

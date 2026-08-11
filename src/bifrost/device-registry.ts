@@ -24,6 +24,19 @@ export const BIFROST_DEVICES: BifrostDevice[] = [
     supportedTransports: ['tailscale_mesh', 'sunshine_moonlight', 'rustdesk_control', 'tauri_agent', 'sonar_sensor'],
   },
   {
+    deviceId: 'tenant_acme_runner',
+    name: 'Acme CI Runner',
+    kind: 'cloud_worker',
+    tenantId: 'tenant_acme',
+    tailscaleName: 'acme-runner.tailnet.ts.net',
+    tailnetAddresses: ['100.64.0.20'],
+    enrolled: true,
+    maxFidelity: 'control',
+    // A build runner needs a shell and artifacts, never a desktop or input.
+    deniedScopes: ['input_inject', 'clipboard_write', 'clipboard_read', 'screen_view'],
+    supportedTransports: ['tailscale_mesh', 'tauri_agent', 'rustdesk_control', 'sonar_sensor'],
+  },
+  {
     deviceId: 'gpu_workstation',
     name: 'GPU Workstation',
     kind: 'gpu_worker',

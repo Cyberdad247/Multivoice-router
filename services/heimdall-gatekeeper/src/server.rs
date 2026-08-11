@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
+use crate::provision::{apply_writes, validate_plan, ProvisioningPlan};
 use crate::scope::{authorize_on_transport, ScopeDecision};
 use crate::token::{verify, SessionEnvelope};
 
@@ -29,6 +30,27 @@ struct AuthorizeRequest {
 struct RevokeRequest {
     #[serde(rename = "sessionId")]
     session_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProvisionRequest {
+    envelope: SessionEnvelope,
+    plan: ProvisioningPlan,
+    /// When true the plan is checked but nothing is written.
+    #[serde(default)]
+    dry_run: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct ProvisionResponse {
+    ok: bool,
+    decision: String,
+    reason: String,
+    #[serde(rename = "sessionId")]
+    session_id: String,
+    #[serde(rename = "filesWritten")]
+    files_written: usize,
+    targets: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -180,6 +202,11 @@ fn route(
             Err(err) => (400, error_json(&format!("malformed authorize request: {err}"))),
         },
 
+        ("POST", "/v1/provision") => match serde_json::from_slice::<ProvisionRequest>(body) {
+            Ok(request) => provision_response(request, config, revocations),
+            Err(err) => (400, error_json(&format!("malformed provision request: {err}"))),
+        },
+
         _ => (404, error_json("no such endpoint")),
     }
 }
@@ -225,6 +252,84 @@ fn authorize_response(
             serde_json::to_string(&response).unwrap_or_default()
         }
         other => deny(&session_id, "out_of_scope", &other.to_string()),
+    }
+}
+
+/// Provisioning runs the same gauntlet as any other action: revocation first,
+/// then envelope verification, then the plan's own validation against the
+/// envelope's scopes and this node's transport.
+fn provision_response(
+    request: ProvisionRequest,
+    config: &Config,
+    revocations: Arc<Mutex<RevocationList>>,
+) -> (u16, String) {
+    let session_id = request.envelope.session_id.clone();
+
+    let refuse = |decision: &str, reason: String| -> (u16, String) {
+        let response = ProvisionResponse {
+            ok: false,
+            decision: decision.to_string(),
+            reason,
+            session_id: session_id.clone(),
+            files_written: 0,
+            targets: Vec::new(),
+        };
+        (403, serde_json::to_string(&response).unwrap_or_default())
+    };
+
+    if revocations.lock().map(|r| r.is_revoked(&session_id)).unwrap_or(false) {
+        return refuse("revoked", "session has been revoked on this node".into());
+    }
+
+    if let Err(err) = verify(&request.envelope, &config.signing_secret, &config.device_id, None) {
+        return refuse("envelope_rejected", err.to_string());
+    }
+
+    if request.envelope.transport != config.transport {
+        return refuse(
+            "transport_mismatch",
+            format!(
+                "envelope is for transport '{}', this node serves '{}'",
+                request.envelope.transport, config.transport
+            ),
+        );
+    }
+
+    let writes = match validate_plan(&request.plan, &request.envelope, &config.config_root) {
+        Ok(writes) => writes,
+        Err(rejection) => return refuse("plan_rejected", rejection.to_string()),
+    };
+
+    let targets: Vec<String> = writes
+        .iter()
+        .map(|(path, _)| path.display().to_string())
+        .collect();
+
+    if request.dry_run {
+        let response = ProvisionResponse {
+            ok: true,
+            decision: "dry_run".into(),
+            reason: format!("{} file(s) would be written", writes.len()),
+            session_id,
+            files_written: 0,
+            targets,
+        };
+        return (200, serde_json::to_string(&response).unwrap_or_default());
+    }
+
+    match apply_writes(&writes) {
+        Ok(count) => {
+            let response = ProvisionResponse {
+                ok: true,
+                decision: "provisioned".into(),
+                reason: format!("wrote {count} config file(s)"),
+                session_id,
+                files_written: count,
+                targets,
+            };
+            (200, serde_json::to_string(&response).unwrap_or_default())
+        }
+        Err(err) => refuse("write_failed", err.to_string()),
     }
 }
 

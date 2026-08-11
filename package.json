@@ -15,6 +15,8 @@
     "camelot:worker:dry": "tsx src/cli/camelot-worker-dry.ts",
     "camelot:approve": "tsx src/cli/camelot-approve.ts",
     "camelot:bifrost": "tsx src/cli/camelot-bifrost.ts",
+    "camelot:redteam": "tsx src/cli/camelot-redteam.ts",
+    "camelot:pipeline": "tsx src/cli/camelot-pipeline.ts",
     "test": "tsx src/tests/smoke.test.ts"
   },
   "dependencies": {

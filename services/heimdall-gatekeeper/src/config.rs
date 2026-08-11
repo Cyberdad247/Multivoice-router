@@ -11,7 +11,9 @@ pub const BIND_ENV: &str = "HEIMDALL_BIND";
 pub const BROKER_ENV: &str = "BIFROST_BROKER_URL";
 pub const HEARTBEAT_ENV: &str = "HEIMDALL_HEARTBEAT_SECONDS";
 pub const TRANSPORT_ENV: &str = "HEIMDALL_TRANSPORT";
+pub const CONFIG_ROOT_ENV: &str = "HEIMDALL_CONFIG_ROOT";
 
+pub const DEFAULT_CONFIG_ROOT: &str = "/var/lib/camelot/bifrost";
 pub const DEFAULT_BIND: &str = "127.0.0.1:8777";
 pub const DEFAULT_HEARTBEAT_SECONDS: u64 = 30;
 pub const MIN_SECRET_LEN: usize = 16;
@@ -25,6 +27,8 @@ pub struct Config {
     pub heartbeat_seconds: u64,
     /// Transport this node exposes. Constrains what any envelope can do here.
     pub transport: String,
+    /// Every provisioned config is written beneath this directory, never outside it.
+    pub config_root: std::path::PathBuf,
 }
 
 #[derive(Debug)]
@@ -72,6 +76,9 @@ impl Config {
             broker_url: env::var(BROKER_ENV).ok().filter(|s| !s.is_empty()),
             heartbeat_seconds,
             transport: env::var(TRANSPORT_ENV).unwrap_or_else(|_| "rustdesk_control".to_string()),
+            config_root: std::path::PathBuf::from(
+                env::var(CONFIG_ROOT_ENV).unwrap_or_else(|_| DEFAULT_CONFIG_ROOT.to_string()),
+            ),
         })
     }
 }

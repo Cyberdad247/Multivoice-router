@@ -22,6 +22,7 @@
 
 mod config;
 mod heartbeat;
+mod provision;
 mod scope;
 mod server;
 mod time;

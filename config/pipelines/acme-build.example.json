@@ -1,0 +1,61 @@
+{
+  "pipelineId": "acme_build",
+  "name": "Acme Build and Deploy",
+  "tenantId": "tenant_acme",
+  "version": "1.0.0",
+  "maxDurationSeconds": 1800,
+  "stages": [
+    {
+      "id": "build",
+      "name": "Build",
+      "deviceId": "tenant_acme_runner",
+      "transport": "tauri_agent",
+      "steps": [
+        {
+          "id": "checkout",
+          "name": "Checkout",
+          "kind": "checkout",
+          "command": "git fetch --depth 1 origin main && git checkout FETCH_HEAD",
+          "workdir": "acme/app",
+          "requiredScopes": [],
+          "timeoutSeconds": 120
+        },
+        {
+          "id": "install",
+          "name": "Install dependencies",
+          "kind": "build",
+          "command": "npm ci",
+          "workdir": "acme/app",
+          "requiredScopes": [],
+          "timeoutSeconds": 600,
+          "dependsOn": ["checkout"]
+        },
+        {
+          "id": "test",
+          "name": "Test",
+          "kind": "test",
+          "command": "npm test",
+          "workdir": "acme/app",
+          "requiredScopes": [],
+          "timeoutSeconds": 900,
+          "dependsOn": ["install"]
+        }
+      ]
+    },
+    {
+      "id": "publish",
+      "name": "Publish artifact",
+      "deviceId": "tenant_acme_runner",
+      "transport": "rustdesk_control",
+      "steps": [
+        {
+          "id": "upload",
+          "name": "Upload build output",
+          "kind": "artifact_push",
+          "requiredScopes": [],
+          "timeoutSeconds": 300
+        }
+      ]
+    }
+  ]
+}

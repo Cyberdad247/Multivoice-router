@@ -51,6 +51,12 @@ export interface GjallarhornInput {
   devices: BifrostDevice[];
   sessions: BifrostSession[];
   observations?: SonarFlowObservation[];
+  /**
+   * Alarms raised elsewhere — node telemetry (`telemetryAlarms`) and the
+   * Redteam (`redteamAlarms`) — folded in so halting and revocation are decided
+   * in one place rather than by each producer separately.
+   */
+  extraAlarms?: GjallarhornAlarm[];
   now?: Date;
 }
 
@@ -87,7 +93,7 @@ const LIVE_STATES = new Set(['provisioning', 'active', 'degraded']);
 export function soundGjallarhorn(input: GjallarhornInput): GjallarhornReport {
   const now = input.now || new Date();
   const observations = input.observations || [];
-  const alarms: GjallarhornAlarm[] = [];
+  const alarms: GjallarhornAlarm[] = [...(input.extraAlarms || [])];
 
   const liveSessions = input.sessions.filter(s => LIVE_STATES.has(s.state));
 

