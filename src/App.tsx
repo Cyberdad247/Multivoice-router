@@ -76,7 +76,8 @@ export default function App() {
       }
     } catch (e) {
       console.error('Failed to fetch Tailscale devices:', e);
-      // Network error (e.g. server down)
+      setTailscaleDevices([]);
+      toast.error('Tailscale bridge unreachable. Check TAILSCALE_API_KEY and TAILSCALE_TAILNET in environment settings.');
     } finally {
       setIsLoadingDevices(false);
     }
