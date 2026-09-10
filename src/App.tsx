@@ -39,9 +39,12 @@ import {
   LogIn,
   LogOut,
   User as UserIcon,
-  ShieldAlert
+  ShieldAlert,
+  Mic2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { cn } from './lib/utils';
+import { getVoiceMetadata } from './constants/voices';
 
 export default function App() {
   const { user, loading: authLoading, login, logout } = useAuth();
@@ -328,6 +331,22 @@ export default function App() {
                   <p className="text-sm font-medium">{selectedPersona.attributes.tone}</p>
                 </div>
                 <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground">AI Voice Model</label>
+                  <div className="flex items-center justify-between mt-1">
+                    <div className="flex items-center gap-1.5 text-sm font-medium">
+                      <Mic2 className="w-3.5 h-3.5 text-primary" />
+                      <span>{selectedPersona.voice}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">({getVoiceMetadata(selectedPersona.voice).gender})</span>
+                    </div>
+                    <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", getVoiceMetadata(selectedPersona.voice).color)}>
+                      {getVoiceMetadata(selectedPersona.voice).tag}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                    {getVoiceMetadata(selectedPersona.voice).description}
+                  </p>
+                </div>
+                <div>
                   <label className="text-[10px] uppercase font-bold text-muted-foreground">Core Memory Fragments</label>
                   <ul className="mt-2 space-y-2">
                     {selectedPersona.memory.map((m, i) => (
@@ -388,8 +407,8 @@ export default function App() {
                         Sources
                       </TabsTrigger>
                       <TabsTrigger value="notebook" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 flex gap-2">
-                        <Sparkles className="w-4 h-4" />
-                        NotebookLM
+                        <Brain className="w-4 h-4 text-primary" />
+                        NotebookLM CloudBrain & RAG
                       </TabsTrigger>
                       <TabsTrigger value="mcp" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 flex gap-2">
                         <Settings2 className="w-4 h-4" />

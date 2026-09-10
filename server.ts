@@ -5,11 +5,24 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { google } from 'googleapis';
 import cookieSession from 'cookie-session';
+import { GoogleGenAI } from '@google/genai';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+let genAIClient: GoogleGenAI | null = null;
+function getGenAI(): GoogleGenAI {
+  if (!genAIClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY environment variable is required');
+    }
+    genAIClient = new GoogleGenAI({ apiKey });
+  }
+  return genAIClient;
+}
 
 async function startServer() {
   const app = express();
@@ -26,6 +39,11 @@ async function startServer() {
   }));
 
   app.use(express.json());
+
+  // Health check endpoint
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
 
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -278,6 +296,169 @@ async function startServer() {
     }
   });
 
+  // RAG: Generate Vector Embeddings using Gemini
+  app.post('/api/rag/embed', async (req, res) => {
+    try {
+      const { texts } = req.body;
+      if (!Array.isArray(texts) || texts.length === 0) {
+        return res.status(400).json({ error: 'texts must be an array of strings' });
+      }
+
+      const ai = getGenAI();
+      const batchSize = 16;
+      const allEmbeddings: number[][] = [];
+
+      for (let i = 0; i < texts.length; i += batchSize) {
+        const batch = texts.slice(i, i + batchSize).map(t => typeof t === 'string' ? t.slice(0, 1500) : String(t));
+        const result = await ai.models.embedContent({
+          model: 'gemini-embedding-2-preview',
+          contents: batch,
+        });
+
+        if (result.embeddings) {
+          result.embeddings.forEach(e => {
+            allEmbeddings.push(e.values || []);
+          });
+        }
+      }
+
+      res.json({ embeddings: allEmbeddings });
+    } catch (error: any) {
+      console.error('RAG Embed Error:', error);
+      res.status(500).json({ error: error?.message || 'Failed to embed content' });
+    }
+  });
+
+  // RAG: Synthesize Character-Grounded Response
+  app.post('/api/rag/synthesize', async (req, res) => {
+    try {
+      const { personaName, role, personality, tone, query, retrievedContext } = req.body;
+      const ai = getGenAI();
+
+      const prompt = `You are ${personaName}, a ${role}.
+Character Core:
+- Personality: ${personality}
+- Vocal & Dialogue Tone: ${tone}
+
+Below is your retrieved long-term memory, core attributes, and NotebookLM Cloud Brain context relevant to the user's inquiry:
+"""
+${retrievedContext}
+"""
+
+User Inquiry: "${query}"
+
+Guidelines:
+1. Respond strictly in your defined persona, voice cadence, and philosophy.
+2. Maintain complete character consistency.
+3. Explicitly utilize the retrieved memory fragments or Cloud Brain knowledge to ground your response, citing or recalling relevant facts naturally.
+4. Keep the response engaging, articulate, and authentic to your character.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      });
+
+      res.json({ text: response.text || '' });
+    } catch (error: any) {
+      console.error('RAG Synthesize Error:', error);
+      res.status(500).json({ error: error?.message || 'Failed to synthesize response' });
+    }
+  });
+
+  // RAG: Extract and Commit Session Memories
+  app.post('/api/rag/extract-memory', async (req, res) => {
+    try {
+      const { transcript, personaName } = req.body;
+      if (!transcript) return res.status(400).json({ error: 'transcript required' });
+
+      const ai = getGenAI();
+      const prompt = `You are an automated memory synthesis agent for the persona "${personaName}".
+Review the following conversation snippet and extract 1 to 3 distinct, valuable memory fragments, user preferences, or character revelations that should be preserved in ${personaName}'s NotebookLM Cloud Brain for future RAG retrieval.
+
+Output strictly a valid JSON array of objects with the following schema:
+[
+  {
+    "title": "Short descriptive title (3-6 words)",
+    "content": "Specific memory or insight formulated from the persona's first-person perspective",
+    "tags": ["tag1", "tag2"],
+    "category": "insight"
+  }
+]
+
+Conversation snippet:
+${transcript}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: 'application/json',
+        }
+      });
+
+      let memories = [];
+      try {
+        memories = JSON.parse(response.text || '[]');
+      } catch {
+        memories = [];
+      }
+
+      res.json({ memories });
+    } catch (error: any) {
+      console.error('Extract Memory Error:', error);
+      res.status(500).json({ error: error?.message || 'Failed to extract memory' });
+    }
+  });
+
+  // NotebookLM: Source & Memory Synthesis (Digest, Podcast, Fact-check)
+  app.post('/api/notebook/synthesize', async (req, res) => {
+    try {
+      const { personaName, role, type, sourcesText } = req.body;
+      const ai = getGenAI();
+      let prompt = '';
+      let title = '';
+
+      switch (type) {
+        case 'summary':
+          title = 'Executive Summary';
+          prompt = `Based on the following sources and persona background, provide a comprehensive executive summary. 
+Use bullet points for key findings and highlight any recurring themes. 
+Respond in the persona of ${personaName} (${role}).
+
+${sourcesText}`;
+          break;
+        case 'podcast':
+          title = 'Audio Overview Script';
+          prompt = `Transform the provided sources into a dynamic "NotebookLM-style" podcast script. 
+There should be two hosts (AI-Persona ${personaName} and a Co-Host). 
+Make it engaging, conversational, and deep-dive into the complex topics found in the sources.
+
+${sourcesText}`;
+          break;
+        case 'factcheck':
+          title = 'Fact-Checking & Validation';
+          prompt = `Analyze the provided sources for potential contradictions or extraordinary claims. 
+Cross-reference information across the sources and highlight any discrepancies or particularly strong evidence found.
+
+${sourcesText}`;
+          break;
+        default:
+          title = 'Synthesis';
+          prompt = `Synthesize the provided sources for ${personaName}:\n\n${sourcesText}`;
+      }
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }]
+      });
+
+      res.json({ title, content: response.text || 'No response generated.' });
+    } catch (error: any) {
+      console.error('Notebook Synthesize Error:', error);
+      res.status(500).json({ error: error?.message || 'Failed to synthesize' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -298,4 +479,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error('Fatal error starting server:', err);
+  process.exit(1);
+});

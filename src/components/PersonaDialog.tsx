@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Persona } from '../types/persona';
+import { Persona, GeminiLiveVoice, GeminiVoiceMetadata } from '../types/persona';
+import { GEMINI_LIVE_VOICES, getVoiceMetadata } from '../constants/voices';
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { X, Plus, Trash2, Network, Monitor, Book, Cloud, Brain, Loader2 } from 'lucide-react';
+import { Badge } from "./ui/badge";
+import { cn } from "../lib/utils";
+import { 
+  X, 
+  Plus, 
+  Trash2, 
+  Network, 
+  Monitor, 
+  Book, 
+  Cloud, 
+  Brain, 
+  Loader2, 
+  Mic2, 
+  Radio, 
+  ListFilter, 
+  Volume2, 
+  Square,
+  Sparkles 
+} from 'lucide-react';
 import { Switch } from "./ui/switch";
 import { toast } from 'sonner';
 
@@ -62,11 +81,93 @@ const DEFAULT_PERSONA: Persona = {
     password: '',
     server: '',
   },
+  ragConfig: {
+    enabled: true,
+    autoRetrieveInLive: true,
+    topK: 3,
+    minSimilarityThreshold: 0.25,
+    autoExtractSessionNotes: true,
+  },
 };
 
 export function PersonaDialog({ persona, isOpen, onClose, onSave, mode }: PersonaDialogProps) {
   const [formData, setFormData] = useState<Persona>(DEFAULT_PERSONA);
   const [isCreatingNotebook, setIsCreatingNotebook] = useState(false);
+  const [voiceSelectorMode, setVoiceSelectorMode] = useState<'radio' | 'dropdown'>('radio');
+  const [previewingVoice, setPreviewingVoice] = useState<string | null>(null);
+
+  const stopVoiceSample = () => {
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    setPreviewingVoice(null);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopVoiceSample();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      stopVoiceSample();
+    }
+  }, [isOpen]);
+
+  const handleVoiceSelect = (voiceId: GeminiLiveVoice) => {
+    const meta = getVoiceMetadata(voiceId);
+    setFormData(prev => ({
+      ...prev,
+      voice: voiceId,
+      attributes: {
+        ...prev.attributes,
+        tone: prev.attributes.tone ? prev.attributes.tone : meta.tone
+      }
+    }));
+  };
+
+  const playVoiceSample = (e: React.MouseEvent, voiceMeta: GeminiVoiceMetadata) => {
+    e.stopPropagation();
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      toast.info(`Voice sample: "${voiceMeta.sampleQuote}"`);
+      return;
+    }
+
+    if (previewingVoice === voiceMeta.id) {
+      stopVoiceSample();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(voiceMeta.sampleQuote);
+    
+    if (voiceMeta.id === 'Charon') {
+      utterance.pitch = 0.6;
+      utterance.rate = 0.88;
+    } else if (voiceMeta.id === 'Puck') {
+      utterance.pitch = 1.35;
+      utterance.rate = 1.15;
+    } else if (voiceMeta.id === 'Fenrir') {
+      utterance.pitch = 0.9;
+      utterance.rate = 1.25;
+    } else if (voiceMeta.id === 'Kore') {
+      utterance.pitch = 0.95;
+      utterance.rate = 0.92;
+    } else if (voiceMeta.id === 'Aoede') {
+      utterance.pitch = 1.15;
+      utterance.rate = 0.95;
+    } else {
+      utterance.pitch = 1.05;
+      utterance.rate = 1.0;
+    }
+
+    utterance.onend = () => setPreviewingVoice(null);
+    utterance.onerror = () => setPreviewingVoice(null);
+
+    setPreviewingVoice(voiceMeta.id);
+    window.speechSynthesis.speak(utterance);
+  };
 
   const createNotebook = async () => {
     setIsCreatingNotebook(true);
@@ -173,13 +274,13 @@ export function PersonaDialog({ persona, isOpen, onClose, onSave, mode }: Person
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className="sm:max-w-[720px] max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle>{mode === 'edit' ? `Edit Persona: ${persona?.name}` : 'Create New Persona'}</DialogTitle>
           <DialogDescription>
             {mode === 'edit' 
-              ? 'Modify the identity, instructions, and memory fragments for this AI persona.' 
-              : 'Define a new AI persona with unique traits, voice, and memories.'}
+              ? 'Modify the identity, instructions, neural voice, and memory fragments for this AI persona.' 
+              : 'Define a new AI persona with unique traits, distinct Gemini Live voice, and memories.'}
           </DialogDescription>
         </DialogHeader>
         
@@ -206,25 +307,17 @@ export function PersonaDialog({ persona, isOpen, onClose, onSave, mode }: Person
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="description">Short Description</Label>
+              <Input 
+                id="description" 
+                placeholder="A brief summary of who this persona is..."
+                value={formData.description} 
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="voice">Voice</Label>
-                <Select 
-                  value={formData.voice} 
-                  onValueChange={(value: any) => setFormData({ ...formData, voice: value })}
-                >
-                  <SelectTrigger id="voice">
-                    <SelectValue placeholder="Select a voice" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Zephyr">Zephyr (Inspirational)</SelectItem>
-                    <SelectItem value="Kore">Kore (Nurturing)</SelectItem>
-                    <SelectItem value="Fenrir">Fenrir (Edgy)</SelectItem>
-                    <SelectItem value="Puck">Puck (Playful)</SelectItem>
-                    <SelectItem value="Charon">Charon (Authoritative)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="personality">Personality Type</Label>
                 <Input 
@@ -237,29 +330,228 @@ export function PersonaDialog({ persona, isOpen, onClose, onSave, mode }: Person
                   })}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="tone">Tone of Voice</Label>
+                <Input 
+                  id="tone" 
+                  placeholder="e.g. Calm and scholarly"
+                  value={formData.attributes.tone} 
+                  onChange={(e) => setFormData({ 
+                    ...formData, 
+                    attributes: { ...formData.attributes, tone: e.target.value } 
+                  })}
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="description">Short Description</Label>
-              <Input 
-                id="description" 
-                placeholder="A brief summary of who this persona is..."
-                value={formData.description} 
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
+            {/* AI Voice Model (Gemini Multimodal Live) Section */}
+            <div className="space-y-3 p-4 rounded-xl border border-primary/20 bg-primary/5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Mic2 className="w-4 h-4 text-primary" />
+                    <Label className="text-sm font-semibold text-foreground">AI Voice Model</Label>
+                    <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/30">
+                      Gemini Multimodal Live
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Select the neural speech model used during live multimodal audio sessions.
+                  </p>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="tone">Tone of Voice</Label>
-              <Input 
-                id="tone" 
-                placeholder="e.g. Calm and scholarly"
-                value={formData.attributes.tone} 
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  attributes: { ...formData.attributes, tone: e.target.value } 
-                })}
-              />
+                {/* Dropdown or Radio Selector Toggle */}
+                <div className="flex items-center rounded-lg bg-background p-1 border shadow-xs shrink-0 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setVoiceSelectorMode('radio')}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer",
+                      voiceSelectorMode === 'radio'
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Radio className="w-3.5 h-3.5" />
+                    <span>Radio Cards</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceSelectorMode('dropdown')}
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all cursor-pointer",
+                      voiceSelectorMode === 'dropdown'
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <ListFilter className="w-3.5 h-3.5" />
+                    <span>Dropdown</span>
+                  </button>
+                </div>
+              </div>
+
+              {voiceSelectorMode === 'radio' ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1" role="radiogroup" aria-label="Gemini Live Voice Models">
+                  {GEMINI_LIVE_VOICES.map((voice) => {
+                    const isSelected = formData.voice === voice.id;
+                    const isAudioPlaying = previewingVoice === voice.id;
+
+                    return (
+                      <div
+                        key={voice.id}
+                        role="radio"
+                        aria-checked={isSelected}
+                        tabIndex={0}
+                        onClick={() => handleVoiceSelect(voice.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === ' ' || e.key === 'Enter') {
+                            e.preventDefault();
+                            handleVoiceSelect(voice.id);
+                          }
+                        }}
+                        className={cn(
+                          "p-3 rounded-lg border text-left cursor-pointer transition-all relative flex flex-col justify-between group",
+                          isSelected
+                            ? "bg-background border-primary shadow-sm ring-1 ring-primary"
+                            : "bg-background/60 hover:bg-background border-border/80 hover:border-border"
+                        )}
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={cn(
+                                  "w-4 h-4 rounded-full border flex items-center justify-center transition-all shrink-0",
+                                  isSelected
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-muted-foreground/40 group-hover:border-muted-foreground"
+                                )}
+                              >
+                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-primary-foreground" />}
+                              </div>
+                              <div>
+                                <span className="font-semibold text-sm text-foreground">{voice.name}</span>
+                                <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">({voice.gender})</span>
+                              </div>
+                            </div>
+
+                            <Badge
+                              variant="outline"
+                              className={cn("text-[9px] px-1.5 py-0 font-medium", voice.color)}
+                            >
+                              {voice.tag}
+                            </Badge>
+                          </div>
+
+                          <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mb-2">
+                            {voice.description}
+                          </p>
+                        </div>
+
+                        <div className="pt-2 border-t border-border/50 flex items-center justify-between gap-2 text-[10px]">
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <span className="font-mono">{voice.pitch}</span>
+                            <span>•</span>
+                            <span className="font-mono">{voice.tempo}</span>
+                          </div>
+
+                          <Button
+                            type="button"
+                            variant={isAudioPlaying ? "default" : "secondary"}
+                            size="sm"
+                            className="h-6 text-[10px] px-2 gap-1 rounded-md"
+                            onClick={(e) => playVoiceSample(e, voice)}
+                            title={`Preview sample for ${voice.name}`}
+                          >
+                            {isAudioPlaying ? (
+                              <>
+                                <Square className="w-2.5 h-2.5 fill-current" />
+                                <span>Stop</span>
+                              </>
+                            ) : (
+                              <>
+                                <Volume2 className="w-3 h-3 text-primary" />
+                                <span>Preview</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-3 pt-1">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="voice-dropdown" className="text-xs text-muted-foreground">
+                      Voice Selection Dropdown
+                    </Label>
+                    <Select
+                      value={formData.voice}
+                      onValueChange={(value: GeminiLiveVoice) => handleVoiceSelect(value)}
+                    >
+                      <SelectTrigger id="voice-dropdown" className="bg-background h-10 w-full">
+                        <SelectValue placeholder="Select a Gemini Live voice model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GEMINI_LIVE_VOICES.map((v) => (
+                          <SelectItem key={v.id} value={v.id}>
+                            <div className="flex items-center justify-between w-full gap-3 py-0.5">
+                              <span className="font-medium text-foreground">{v.name} ({v.gender})</span>
+                              <span className="text-xs text-muted-foreground">{v.tag} • {v.pitch}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Selected Voice Preview Card */}
+                  {(() => {
+                    const activeMeta = getVoiceMetadata(formData.voice);
+                    const isAudioPlaying = previewingVoice === activeMeta.id;
+                    return (
+                      <div className="p-3 rounded-lg border bg-background flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-foreground">{activeMeta.name}</span>
+                            <span className="text-[10px] text-muted-foreground">({activeMeta.gender})</span>
+                            <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", activeMeta.color)}>
+                              {activeMeta.tag}
+                            </Badge>
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {activeMeta.pitch} • {activeMeta.tempo}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">{activeMeta.description}</p>
+                          <p className="text-[10px] text-muted-foreground/80 italic">"{activeMeta.sampleQuote}"</p>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant={isAudioPlaying ? "default" : "outline"}
+                          size="sm"
+                          className="h-8 text-xs px-3 gap-1.5 shrink-0 self-start sm:self-auto"
+                          onClick={(e) => playVoiceSample(e, activeMeta)}
+                        >
+                          {isAudioPlaying ? (
+                            <>
+                              <Square className="w-3 h-3 fill-current" />
+                              <span>Stop Preview</span>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="w-3.5 h-3.5 text-primary" />
+                              <span>Preview Voice</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -492,6 +784,88 @@ export function PersonaDialog({ persona, isOpen, onClose, onSave, mode }: Person
                       </Button>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* RAG Memory Retrieval Configuration */}
+            <div className="space-y-4 border rounded-lg p-4 bg-purple-500/5 border-purple-500/20">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-purple-500" />
+                    RAG Knowledge & Memory Engine
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Enables NotebookLM CloudBrain vector retrieval during live voice and conversational recall.
+                  </p>
+                </div>
+                <Switch 
+                  checked={formData.ragConfig?.enabled ?? true} 
+                  onCheckedChange={(checked) => setFormData({ 
+                    ...formData, 
+                    ragConfig: { ...(formData.ragConfig || { enabled: true, autoRetrieveInLive: true, topK: 3, minSimilarityThreshold: 0.25 }), enabled: checked } 
+                  })}
+                />
+              </div>
+
+              {(formData.ragConfig?.enabled ?? true) && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between p-2.5 rounded bg-background/60 border text-xs">
+                    <div className="space-y-0.5">
+                      <span className="font-semibold text-foreground">Live Voice Auto-Retrieval</span>
+                      <p className="text-[10px] text-muted-foreground">
+                        Allows Gemini Live to automatically trigger query_persona_rag to ground voice responses.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={formData.ragConfig?.autoRetrieveInLive ?? true}
+                      onCheckedChange={(checked) => setFormData({
+                        ...formData,
+                        ragConfig: { ...(formData.ragConfig || { enabled: true, autoRetrieveInLive: true, topK: 3, minSimilarityThreshold: 0.25 }), autoRetrieveInLive: checked }
+                      })}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="space-y-1">
+                      <Label htmlFor="rag-top-k" className="text-xs">Context Chunks (Top-K)</Label>
+                      <Input
+                        id="rag-top-k"
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={formData.ragConfig?.topK ?? 3}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          ragConfig: {
+                            ...(formData.ragConfig || { enabled: true, autoRetrieveInLive: true, topK: 3, minSimilarityThreshold: 0.25 }),
+                            topK: Math.max(1, Math.min(10, parseInt(e.target.value) || 3))
+                          }
+                        })}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="rag-threshold" className="text-xs">Similarity Threshold</Label>
+                      <Input
+                        id="rag-threshold"
+                        type="number"
+                        step={0.05}
+                        min={0.1}
+                        max={0.9}
+                        value={formData.ragConfig?.minSimilarityThreshold ?? 0.25}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          ragConfig: {
+                            ...(formData.ragConfig || { enabled: true, autoRetrieveInLive: true, topK: 3, minSimilarityThreshold: 0.25 }),
+                            minSimilarityThreshold: parseFloat(e.target.value) || 0.25
+                          }
+                        })}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

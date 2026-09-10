@@ -4,6 +4,7 @@ import { Badge } from './ui/badge';
 import { Brain, Mic2, Sparkles, Edit2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
+import { getVoiceMetadata } from '../constants/voices';
 
 interface PersonaCardProps {
   persona: Persona;
@@ -65,9 +66,15 @@ export function PersonaCard({ persona, isSelected, onSelect, onEdit, disabled }:
             </Badge>
           ))}
         </div>
-        <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Mic2 className="w-3 h-3" />
-          <span>Voice: {persona.voice}</span>
+        <div className="mt-3 flex items-center justify-between gap-2 text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Mic2 className="w-3.5 h-3.5 text-primary" />
+            <span className="font-medium text-foreground">{persona.voice}</span>
+            <span className="text-[10px] text-muted-foreground font-mono">({getVoiceMetadata(persona.voice).gender})</span>
+          </div>
+          <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", getVoiceMetadata(persona.voice).color)}>
+            {getVoiceMetadata(persona.voice).tag}
+          </Badge>
         </div>
       </CardContent>
     </Card>

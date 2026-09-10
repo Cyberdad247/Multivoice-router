@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality, LiveServerMessage, Type } from '@google/genai';
 import { Persona } from '../types/persona';
 import { float32ToInt16, arrayBufferToBase64, base64ToArrayBuffer, int16ToFloat32 } from '../lib/audio-utils';
+import { ragService } from '../services/rag-service';
 import { toast } from 'sonner';
 
 const SAMPLE_RATE = 16000;
@@ -11,6 +12,11 @@ export function useGeminiLive(persona: Persona) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [transcription, setTranscription] = useState<{ role: 'user' | 'model'; text: string }[]>([]);
   const [audioLevel, setAudioLevel] = useState(0);
+
+  const transcriptionRef = useRef(transcription);
+  useEffect(() => {
+    transcriptionRef.current = transcription;
+  }, [transcription]);
 
   const sessionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -71,6 +77,7 @@ export function useGeminiLive(persona: Persona) {
         systemInstruction: newPersona.systemInstruction + 
           "\n\nYour memory includes: " + newPersona.memory.join(". ") + 
           sourceContext +
+          "\n\n[RAG & NOTEBOOKLM CLOUD BRAIN ACTIVE]: You have access to a live RAG Retrieval-Augmented Generation system. Whenever asked about your past, your core tenets, your specialized domain knowledge, or NotebookLM notes, use the 'query_persona_rag' tool to retrieve relevant memories and maintain total character consistency." +
           "\n\nPlease use the provided documents and URLs to ground your responses. If asked about specific details from the sources, refer to them accurately.",
         tools: [
           ...(urlSources.length > 0 ? [{ urlContext: { urls: urlSources } }] : []),
@@ -91,6 +98,18 @@ export function useGeminiLive(persona: Persona) {
           }] : []),
           {
             functionDeclarations: [
+              {
+                name: 'query_persona_rag',
+                description: 'Search and retrieve persona-specific memories, character attributes, domain expertise, and NotebookLM Cloud Brain notes to maintain character consistency and recall specific facts.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    query: { type: Type.STRING, description: 'The search query or concept to look up in the persona memory bank' },
+                    category: { type: Type.STRING, description: 'Optional category filter: all, memory, attribute, cloudbrain, or source' }
+                  },
+                  required: ['query']
+                }
+              },
               {
                 name: 'list_tailscale_devices',
                 description: 'List all devices in the user\'s Tailscale network (tailnet) to check their status and hostnames.',
@@ -137,6 +156,7 @@ export function useGeminiLive(persona: Persona) {
           systemInstruction: persona.systemInstruction + 
             "\n\nYour memory includes: " + persona.memory.join(". ") + 
             sourceContext +
+            "\n\n[RAG & NOTEBOOKLM CLOUD BRAIN ACTIVE]: You have access to a live RAG (Retrieval-Augmented Generation) memory bank and NotebookLM Cloud Brain. Whenever asked about your past experiences, specific expertise, philosophy, or details from your notes, call 'query_persona_rag' to retrieve relevant memories and maintain total character consistency." +
             (persona.notebookConfig?.enabled ? `\n\nCLOUD BRAIN (Notebook): You are linked to a Google Doc (ID: ${persona.notebookConfig.id}). You can use 'query_cloud_brain' to retrieve long-term context and 'write_to_cloud_brain' to save important insights, user preferences, or mission logs during this session.` : "") +
             "\n\nPlease use the provided documents and URLs to ground your responses. If asked about specific details from the sources, refer to them accurately.",
           inputAudioTranscription: {},
@@ -160,6 +180,18 @@ export function useGeminiLive(persona: Persona) {
             }] : []),
             {
               functionDeclarations: [
+                {
+                  name: 'query_persona_rag',
+                  description: 'Search and retrieve persona-specific memories, character attributes, domain expertise, and NotebookLM Cloud Brain notes to maintain character consistency and recall specific facts.',
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      query: { type: Type.STRING, description: 'The search query or concept to look up in the persona memory bank' },
+                      category: { type: Type.STRING, description: 'Optional category filter: all, memory, attribute, cloudbrain, or source' }
+                    },
+                    required: ['query']
+                  }
+                },
                 {
                   name: 'list_tailscale_devices',
                   description: 'List all devices in the user\'s Tailscale network (tailnet) to check their status and hostnames.',
@@ -331,6 +363,53 @@ export function useGeminiLive(persona: Persona) {
                   });
                 }
 
+                if (call.name === 'query_persona_rag') {
+                  try {
+                    const queryText = (call.args as any)?.query || '';
+                    const categoryFilter = (call.args as any)?.category || 'all';
+                    const results = await ragService.searchPersonaRag(persona, queryText, {
+                      category: categoryFilter,
+                      topK: 4,
+                      emitTelemetry: true,
+                    });
+                    const groundingContext = ragService.buildGroundingContext(results);
+                    
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'query_persona_rag',
+                        response: {
+                          found: results.length > 0,
+                          retrievedContext: groundingContext,
+                          memoriesCount: results.length,
+                          topMatches: results.map(r => ({
+                            title: r.chunk.title,
+                            category: r.chunk.category,
+                            confidence: `${Math.round(r.similarity * 100)}%`,
+                            matchType: r.matchType,
+                            content: r.chunk.content.slice(0, 200),
+                          }))
+                        },
+                        id: call.id
+                      }]
+                    });
+
+                    if (results.length > 0) {
+                      toast.info(`🧠 ${persona.name} retrieved: "${results[0].chunk.title}" (${Math.round(results[0].similarity * 100)}% match)`, {
+                        duration: 3500,
+                      });
+                    }
+                  } catch (err: any) {
+                    console.error('Error executing query_persona_rag:', err);
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'query_persona_rag',
+                        response: { error: 'Failed to retrieve persona memory' },
+                        id: call.id
+                      }]
+                    });
+                  }
+                }
+
                 if (call.name === 'query_cloud_brain') {
                   try {
                     const response = await fetch(`/api/google/drive/file/${persona.notebookConfig?.id}`);
@@ -355,22 +434,34 @@ export function useGeminiLive(persona: Persona) {
 
                 if (call.name === 'write_to_cloud_brain') {
                   try {
-                    await fetch('/api/google/notebook/append', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        docId: persona.notebookConfig?.id,
-                        content: call.args.content
-                      })
+                    const contentToSave = (call.args as any)?.content || '';
+                    if (persona.notebookConfig?.id) {
+                      await fetch('/api/google/notebook/append', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          docId: persona.notebookConfig?.id,
+                          content: contentToSave
+                        })
+                      });
+                    }
+
+                    // Simultaneously index into persona RAG memory bank
+                    await ragService.addMemoryToCloudBrain(persona, {
+                      title: `Live Session Log (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`,
+                      content: contentToSave,
+                      category: 'cloudbrain',
+                      tags: ['live_session', 'cloudbrain'],
                     });
+
                     sessionRef.current?.sendToolResponse({
                       functionResponses: [{
                         name: 'write_to_cloud_brain',
-                        response: { status: 'Memory persisted to Cloud Brain' },
+                        response: { status: 'Memory persisted to Cloud Brain & vector indexed' },
                         id: call.id
                       }]
                     });
-                    toast.success(`${persona.name} updated the Cloud Brain.`);
+                    toast.success(`🧠 ${persona.name} committed new memory to Cloud Brain.`);
                   } catch (e) {
                     sessionRef.current?.sendToolResponse({
                       functionResponses: [{
@@ -388,6 +479,18 @@ export function useGeminiLive(persona: Persona) {
             setIsConnected(false);
             setIsConnecting(false);
             stopAudio();
+
+            const history = transcriptionRef.current;
+            if (history && history.length >= 3) {
+              const transcriptText = history
+                .map(h => `${h.role === 'user' ? 'User' : persona.name}: ${h.text}`)
+                .join('\n');
+              ragService.extractAndCommitSessionMemories(persona, transcriptText).then(chunks => {
+                if (chunks.length > 0) {
+                  toast.success(`🧠 Synthesized & saved ${chunks.length} new insights to ${persona.name}'s memory bank.`);
+                }
+              }).catch(() => {});
+            }
           },
           onerror: (error) => {
             console.error('Gemini Live Error:', error);

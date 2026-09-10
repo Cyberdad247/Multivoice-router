@@ -1,3 +1,5 @@
+import { CloudBrainLogEntry } from './rag';
+
 export interface Source {
   id: string;
   type: 'url' | 'file';
@@ -6,12 +8,27 @@ export interface Source {
   url?: string; // For URLs
 }
 
+export type GeminiLiveVoice = 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr' | 'Aoede';
+
+export interface GeminiVoiceMetadata {
+  id: GeminiLiveVoice;
+  name: string;
+  gender: 'Female' | 'Male' | 'Neutral';
+  tone: string;
+  pitch: string;
+  tempo: string;
+  tag: string;
+  description: string;
+  sampleQuote: string;
+  color?: string;
+}
+
 export interface Persona {
   id: string;
   name: string;
   role: string;
   description: string;
-  voice: 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Zephyr';
+  voice: GeminiLiveVoice;
   systemInstruction: string;
   attributes: {
     tone: string;
@@ -19,6 +36,14 @@ export interface Persona {
     personality: string;
   };
   memory: string[];
+  cloudBrainLogs?: CloudBrainLogEntry[];
+  ragConfig?: {
+    enabled?: boolean;
+    autoRetrieveInLive?: boolean;
+    topK?: number;
+    minSimilarityThreshold?: number;
+    autoExtractSessionNotes?: boolean;
+  };
   sources?: Source[];
   notebookConfig?: {
     enabled: boolean;
