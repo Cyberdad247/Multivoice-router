@@ -63,6 +63,8 @@ export interface Persona {
     password?: string;
     server?: string;
   };
+  backdropUrl?: string;
+  backdropTheme?: string;
 }
 
 export interface TailscaleDevice {

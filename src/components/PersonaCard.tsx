@@ -25,7 +25,19 @@ export function PersonaCard({ persona, isSelected, onSelect, onEdit, disabled }:
       )}
       onClick={() => !disabled && onSelect(persona)}
     >
-      <div className="absolute top-2 right-2 flex gap-1">
+      {persona.backdropUrl && (
+        <div className="absolute inset-0 pointer-events-none opacity-10 group-hover:opacity-20 transition-opacity">
+          <img 
+            src={persona.backdropUrl} 
+            alt="" 
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover filter blur-[1px]"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/85 to-transparent" />
+        </div>
+      )}
+      <div className="relative z-10">
+        <div className="absolute top-2 right-2 flex gap-1">
         <Button
           variant="ghost"
           size="icon"
@@ -77,6 +89,7 @@ export function PersonaCard({ persona, isSelected, onSelect, onEdit, disabled }:
           </Badge>
         </div>
       </CardContent>
+      </div>
     </Card>
   );
 }

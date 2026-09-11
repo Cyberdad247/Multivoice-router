@@ -21,7 +21,7 @@ service cloud.firestore {
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.role is string && data.role.size() <= 100
         && data.ownerId == request.auth.uid
-        && (data.voice == null || data.voice in ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'])
+        && (data.voice == null || data.voice in ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede'])
         && (data.memory == null || (data.memory is list && data.memory.size() <= 20))
         && (data.updatedAt == request.time);
     }

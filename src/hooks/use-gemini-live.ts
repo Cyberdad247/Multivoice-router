@@ -43,6 +43,15 @@ export function useGeminiLive(persona: Persona) {
 
     isPlayingRef.current = true;
     const chunk = audioQueueRef.current.shift()!;
+
+    // Calculate model audio level for conversation intensity
+    let sum = 0;
+    for (let i = 0; i < chunk.length; i++) {
+      sum += chunk[i] * chunk[i];
+    }
+    const modelLevel = Math.min(1, Math.sqrt(sum / chunk.length) * 2.2);
+    setAudioLevel(prev => Math.max(prev * 0.4, modelLevel));
+
     const audioBuffer = audioContextRef.current.createBuffer(1, chunk.length, SAMPLE_RATE);
     audioBuffer.getChannelData(0).set(chunk);
 
@@ -51,6 +60,9 @@ export function useGeminiLive(persona: Persona) {
     source.connect(audioContextRef.current.destination);
     source.onended = () => {
       isPlayingRef.current = false;
+      if (audioQueueRef.current.length === 0) {
+        setAudioLevel(prev => prev * 0.2);
+      }
       playNextInQueue();
     };
     source.start();

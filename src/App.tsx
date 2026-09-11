@@ -9,6 +9,9 @@ import { PersonaDialog } from './components/PersonaDialog';
 import { SourceManager } from './components/SourceManager';
 import { NotebookLMLab } from './components/NotebookLMLab';
 import { AssimilationProtocol } from './components/AssimilationProtocol';
+import { CamelotCarousel } from './components/CamelotCarousel';
+import { SoundscapeManager } from './components/SoundscapeManager';
+import { PersonaBackdrop } from './components/PersonaBackdrop';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
@@ -42,7 +45,9 @@ import {
   User as UserIcon,
   ShieldAlert,
   Mic2,
-  Workflow
+  Workflow,
+  Layers,
+  LayoutGrid
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -58,6 +63,7 @@ export default function App() {
   const [tailscaleConfigured, setTailscaleConfigured] = useState<boolean | null>(null);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [isDiagnosticOpen, setIsDiagnosticOpen] = useState(false);
+  const [showCarousel, setShowCarousel] = useState(true);
 
   const fetchTailscaleDevices = useCallback(async (isManual = false) => {
     setIsLoadingDevices(true);
@@ -306,7 +312,48 @@ export default function App() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-7xl">
+      <main className="container mx-auto px-4 py-8 max-w-7xl space-y-8">
+        {/* Sovereign MetaCompiler / Anti-Gravity Parallel Forge Carousel */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 rounded-full bg-amber-400 animate-ping" />
+              <h2 className="text-xs font-mono font-bold tracking-wider uppercase text-amber-400">
+                Sovereign Carousel Selection Stage &bull; OMEGA_TITAN_ANTI_GRAVITY_NEXUS
+              </h2>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowCarousel(!showCarousel)}
+              className="h-7 text-xs font-mono text-muted-foreground hover:text-foreground gap-1.5"
+            >
+              {showCarousel ? <LayoutGrid className="w-3.5 h-3.5" /> : <Layers className="w-3.5 h-3.5" />}
+              {showCarousel ? 'Collapse Stage' : 'Expand 3D Carousel'}
+            </Button>
+          </div>
+
+          <AnimatePresence>
+            {showCarousel && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.3 }}
+              >
+                <CamelotCarousel
+                  personas={personas}
+                  selectedPersona={selectedPersona}
+                  onSelectPersona={handlePersonaChange}
+                  isConnected={isConnected}
+                  isConnecting={isConnecting}
+                  onConnect={handleToggleConnection}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
           {/* Left Column: Persona Selection & Details */}
@@ -387,37 +434,50 @@ export default function App() {
 
           {/* Right Column: Live Interaction */}
           <div className="lg:col-span-8 space-y-6">
-            <Card className="overflow-hidden border-2 border-primary/10">
-              <div className="bg-primary/5 p-6 border-b">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="space-y-1">
-                    <CardTitle className="text-2xl font-display flex items-center gap-2">
-                      {isConnected ? (
-                        <motion.div
-                          animate={{ scale: [1, 1.2, 1] }}
-                          transition={{ repeat: Infinity, duration: 2 }}
-                        >
-                          <Activity className="w-6 h-6 text-primary" />
-                        </motion.div>
-                      ) : (
-                        <Mic className="w-6 h-6 text-muted-foreground" />
-                      )}
-                      {isConnected ? `Conversing with ${selectedPersona.name}` : 'Ready to Connect'}
-                    </CardTitle>
-                    <CardDescription>
-                      {isConnected 
-                        ? 'Speak naturally. The AI is listening and will respond in real-time.' 
-                        : 'Select a persona and click the button above to start a live voice session.'}
-                    </CardDescription>
+            <Card className="overflow-hidden border-2 border-primary/10 relative shadow-lg">
+              <PersonaBackdrop
+                persona={selectedPersona}
+                audioLevel={audioLevel}
+                isConnected={isConnected}
+              >
+                <div className="p-6 border-b border-border/60">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="space-y-1">
+                      <CardTitle className="text-2xl font-display flex items-center gap-2">
+                        {isConnected ? (
+                          <motion.div
+                            animate={{ scale: [1, 1.2, 1] }}
+                            transition={{ repeat: Infinity, duration: 2 }}
+                          >
+                            <Activity className="w-6 h-6 text-primary" />
+                          </motion.div>
+                        ) : (
+                          <Mic className="w-6 h-6 text-muted-foreground" />
+                        )}
+                        {isConnected ? `Conversing with ${selectedPersona.name}` : 'Ready to Connect'}
+                      </CardTitle>
+                      <CardDescription>
+                        {isConnected 
+                          ? 'Speak naturally. The AI is listening and will respond in real-time.' 
+                          : 'Select a persona and click the button above to start a live voice session.'}
+                      </CardDescription>
+                    </div>
+                  </div>
+
+                  <AudioVisualizer 
+                    level={audioLevel} 
+                    isActive={isConnected} 
+                    color={isConnected ? "hsl(var(--primary))" : "hsl(var(--muted))"}
+                  />
+
+                  <div className="mt-4">
+                    <SoundscapeManager 
+                      conversationIntensity={audioLevel}
+                      isConnected={isConnected}
+                    />
                   </div>
                 </div>
-
-                <AudioVisualizer 
-                  level={audioLevel} 
-                  isActive={isConnected} 
-                  color={isConnected ? "hsl(var(--primary))" : "hsl(var(--muted))"}
-                />
-              </div>
+              </PersonaBackdrop>
 
               <CardContent className="p-0">
                 <Tabs defaultValue="chat" className="w-full">
