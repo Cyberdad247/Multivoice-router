@@ -46,20 +46,33 @@ export async function runDiagnostics(): Promise<DiagnosticResult[]> {
   try {
     const tsRes = await fetch('/api/tailscale/devices');
     const tsData = await tsRes.json();
+    const devices = Array.isArray(tsData) ? tsData : (tsData?.devices || []);
+    const isConfigured = tsData?.configured ?? (devices.length > 0);
     
-    if (tsRes.ok) {
+    if (tsRes.ok && isConfigured) {
       results.push({
         id: DIAGNOSTIC_KEYS.TAILSCALE,
         name: 'Tailscale Bridge',
         status: 'ok',
-        message: `${tsData.length || 0} remote devices reachable via tailnet.`,
+        message: `${devices.length} remote device(s) reachable via tailnet.`,
+      });
+    } else if (tsRes.ok && !isConfigured) {
+      results.push({
+        id: DIAGNOSTIC_KEYS.TAILSCALE,
+        name: 'Tailscale Bridge',
+        status: 'warning',
+        message: 'Tailscale bridge is unconfigured (optional).',
+        troubleshootingSteps: [
+          'Add TAILSCALE_API_KEY and TAILSCALE_TAILNET to environment variables if you wish to monitor remote nodes.',
+          'Ensure the Tailscale API key has "Devices" read permissions.'
+        ]
       });
     } else {
       results.push({
         id: DIAGNOSTIC_KEYS.TAILSCALE,
         name: 'Tailscale Bridge',
-        status: 'error',
-        message: tsData.error || 'Connection failed',
+        status: 'warning',
+        message: tsData?.error || 'Tailscale bridge unreachable.',
         troubleshootingSteps: [
           'Add TAILSCALE_API_KEY and TAILSCALE_TAILNET to environment variables.',
           'Ensure the Tailscale API key has "Devices" read permissions.'
@@ -70,8 +83,8 @@ export async function runDiagnostics(): Promise<DiagnosticResult[]> {
     results.push({
       id: DIAGNOSTIC_KEYS.TAILSCALE,
       name: 'Tailscale Bridge',
-      status: 'error',
-      message: 'Local bridge server unreachable.',
+      status: 'warning',
+      message: 'Local bridge server standby / offline (optional).',
     });
   }
 

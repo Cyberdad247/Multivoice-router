@@ -8,6 +8,7 @@ import { LiveChat } from './components/LiveChat';
 import { PersonaDialog } from './components/PersonaDialog';
 import { SourceManager } from './components/SourceManager';
 import { NotebookLMLab } from './components/NotebookLMLab';
+import { AssimilationProtocol } from './components/AssimilationProtocol';
 import { Button } from './components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
@@ -40,7 +41,8 @@ import {
   LogOut,
   User as UserIcon,
   ShieldAlert,
-  Mic2
+  Mic2,
+  Workflow
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -53,34 +55,57 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [dialogConfig, setDialogConfig] = useState<{ mode: 'create' | 'edit'; persona: Persona | null } | null>(null);
   const [tailscaleDevices, setTailscaleDevices] = useState<TailscaleDevice[]>([]);
+  const [tailscaleConfigured, setTailscaleConfigured] = useState<boolean | null>(null);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
   const [isDiagnosticOpen, setIsDiagnosticOpen] = useState(false);
 
-  const fetchTailscaleDevices = useCallback(async () => {
+  const fetchTailscaleDevices = useCallback(async (isManual = false) => {
     setIsLoadingDevices(true);
     try {
       const res = await fetch('/api/tailscale/devices');
-      const data = await res.json();
-      
-      if (res.ok) {
-        setTailscaleDevices(data);
-      } else {
-        // Log to console for debugging
-        console.warn('Tailscale API response:', res.status, data.error);
-        
-        // Clear devices if not configured or error
+      if (!res.ok) {
         setTailscaleDevices([]);
-        
-        // ONLY toast if it's NOT a configuration (400) error
-        // Standard user flow might not have Tailscale yet, so we don't want to alert them constantly
-        if (res.status !== 400) {
-          toast.error(`Tailscale Error: ${data.error || 'Failed to fetch devices'}`);
+        setTailscaleConfigured(false);
+        if (isManual) {
+          toast.error('Tailscale service is currently unavailable.');
         }
+        return;
+      }
+
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setTailscaleDevices(data);
+        setTailscaleConfigured(true);
+        if (isManual) {
+          toast.success(`Tailscale refreshed: ${data.length} device(s) found.`);
+        }
+      } else if (data && typeof data === 'object') {
+        const devices = Array.isArray(data.devices) ? data.devices : [];
+        setTailscaleDevices(devices);
+        const configured = data.configured ?? (devices.length > 0);
+        setTailscaleConfigured(configured);
+
+        if (isManual) {
+          if (!configured) {
+            toast.info('Tailscale bridge is not configured (optional). Add TAILSCALE_API_KEY in settings to connect.');
+          } else if (data.error) {
+            toast.error(`Tailscale: ${data.error}`);
+          } else {
+            toast.success(`Tailscale refreshed: ${devices.length} device(s) found.`);
+          }
+        }
+      } else {
+        setTailscaleDevices([]);
+        setTailscaleConfigured(false);
       }
     } catch (e) {
-      console.error('Failed to fetch Tailscale devices:', e);
+      // Non-blocking warning for polling / background queries to prevent false alarm toasts
+      console.warn('Tailscale device query notice:', e);
       setTailscaleDevices([]);
-      toast.error('Tailscale bridge unreachable. Check TAILSCALE_API_KEY and TAILSCALE_TAILNET in environment settings.');
+      setTailscaleConfigured(false);
+      if (isManual) {
+        toast.error('Tailscale bridge unreachable. Check server connection or configuration.');
+      }
     } finally {
       setIsLoadingDevices(false);
     }
@@ -410,6 +435,13 @@ export default function App() {
                         <Brain className="w-4 h-4 text-primary" />
                         NotebookLM CloudBrain & RAG
                       </TabsTrigger>
+                      <TabsTrigger value="assimilation" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-emerald-500 rounded-none px-0 flex gap-2 text-emerald-400 font-medium">
+                        <Workflow className="w-4 h-4 text-emerald-400" />
+                        Assimilation Protocol
+                        <span className="ml-1 px-1.5 py-0.5 text-[9px] bg-emerald-500/20 text-emerald-300 rounded-full font-mono border border-emerald-500/30">
+                          Active
+                        </span>
+                      </TabsTrigger>
                       <TabsTrigger value="mcp" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 flex gap-2">
                         <Settings2 className="w-4 h-4" />
                         MCP Context
@@ -434,6 +466,13 @@ export default function App() {
                     <NotebookLMLab 
                       persona={selectedPersona}
                       sources={selectedPersona.sources || []}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="assimilation" className="p-0 m-0">
+                    <AssimilationProtocol
+                      currentPersona={selectedPersona}
+                      transcription={transcription}
                     />
                   </TabsContent>
 
@@ -529,16 +568,29 @@ export default function App() {
 
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
-                          <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-                            <Shield className="w-3 h-3" />
-                            Tailscale Network Health
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                              <Shield className="w-3 h-3" />
+                              Tailscale Network Health
+                            </h3>
+                            {tailscaleConfigured === false && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1.5 h-4 text-muted-foreground border-dashed">
+                                Optional / Standby
+                              </Badge>
+                            )}
+                            {tailscaleConfigured === true && (
+                              <Badge variant="outline" className="text-[9px] py-0 px-1.5 h-4 border-green-500/30 text-green-500">
+                                Connected
+                              </Badge>
+                            )}
+                          </div>
                           <Button 
                             variant="ghost" 
                             size="icon" 
                             className="h-6 w-6" 
-                            onClick={fetchTailscaleDevices}
+                            onClick={() => fetchTailscaleDevices(true)}
                             disabled={isLoadingDevices}
+                            title="Refresh Tailscale Devices"
                           >
                             <RefreshCw className={`w-3 h-3 ${isLoadingDevices ? 'animate-spin' : ''}`} />
                           </Button>
@@ -566,9 +618,15 @@ export default function App() {
                               </div>
                             ))
                           ) : (
-                            <div className="py-8 text-center border border-dashed rounded-lg">
-                              <p className="text-xs text-muted-foreground">No devices found on your tailnet.</p>
-                              <p className="text-[10px] text-muted-foreground mt-1 px-4">Ensure TAILSCALE_API_KEY and TAILSCALE_TAILNET are correctly configured in Settings.</p>
+                            <div className="py-6 px-4 text-center border border-dashed rounded-lg bg-muted/10">
+                              <p className="text-xs font-medium text-foreground">
+                                {tailscaleConfigured === false ? 'Tailscale Mesh Bridge (Optional)' : 'No devices found on tailnet'}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-1 max-w-sm mx-auto">
+                                {tailscaleConfigured === false
+                                  ? 'Configure TAILSCALE_API_KEY and TAILSCALE_TAILNET in Settings if you want to route to private nodes.'
+                                  : 'No active machines currently visible on this Tailscale network.'}
+                              </p>
                             </div>
                           )}
                         </div>
@@ -591,6 +649,10 @@ export default function App() {
                                 <Badge variant="outline" className="text-[10px] border-primary/30 text-primary">write_to_cloud_brain</Badge>
                               </>
                             )}
+                            <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">execute_superpower_skill</Badge>
+                            <Badge variant="outline" className="text-[10px] border-emerald-500/30 text-emerald-400">dispatch_subagent</Badge>
+                            <Badge variant="outline" className="text-[10px] border-purple-500/30 text-purple-400">query_colibri_moe</Badge>
+                            <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-400">compress_context_omniroute</Badge>
                           </div>
                         </div>
                         <div className="p-3 rounded-md border bg-card">

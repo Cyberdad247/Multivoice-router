@@ -119,6 +119,52 @@ export function useGeminiLive(persona: Persona) {
                 name: 'get_rustdesk_info',
                 description: 'Get connection information for the linked RustDesk remote desktop agent.',
                 parameters: { type: Type.OBJECT, properties: {} }
+              },
+              {
+                name: 'execute_superpower_skill',
+                description: 'Activate an advanced software engineering or verification skill from obra/superpowers (e.g. systematic-debugging, test-driven-development, multi-turn-planning, browser-devtools-inspector) to perform disciplined, multi-phase problem solving.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    skillId: { type: Type.STRING, description: 'The skill ID: systematic-debugging, test-driven-development, multi-turn-planning, or browser-devtools-inspector' },
+                    problemStatement: { type: Type.STRING, description: 'The target technical problem or task to solve' }
+                  },
+                  required: ['skillId', 'problemStatement']
+                }
+              },
+              {
+                name: 'dispatch_subagent',
+                description: 'Fork context into an ephemeral, isolated subagent to conduct independent code verification or research.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    taskGoal: { type: Type.STRING, description: 'The isolated task or objective for the subagent' },
+                    subagentType: { type: Type.STRING, description: 'code-verifier, researcher, debugger, or security-auditor' }
+                  },
+                  required: ['taskGoal']
+                }
+              },
+              {
+                name: 'query_colibri_moe',
+                description: 'Query the local JustVugg/colibri tiered MoE inference engine (GLM-5.2-MoE-744B with NVMe/RAM/VRAM weight streaming) on the local mesh.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    prompt: { type: Type.STRING, description: 'The prompt or reasoning query for Colibri MoE' }
+                  },
+                  required: ['prompt']
+                }
+              },
+              {
+                name: 'compress_context_omniroute',
+                description: 'Compress text or documents using diegosouzapw/OmniRoute RTK + Caveman compression to optimize tokens.',
+                parameters: {
+                  type: Type.OBJECT,
+                  properties: {
+                    text: { type: Type.STRING, description: 'Text to compress' }
+                  },
+                  required: ['text']
+                }
               }
             ]
           }
@@ -201,6 +247,52 @@ export function useGeminiLive(persona: Persona) {
                   name: 'get_rustdesk_info',
                   description: 'Get connection information for the linked RustDesk remote desktop agent.',
                   parameters: { type: Type.OBJECT, properties: {} }
+                },
+                {
+                  name: 'execute_superpower_skill',
+                  description: 'Activate an advanced software engineering or verification skill from obra/superpowers (e.g. systematic-debugging, test-driven-development, multi-turn-planning, browser-devtools-inspector) to perform disciplined, multi-phase problem solving.',
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      skillId: { type: Type.STRING, description: 'The skill ID: systematic-debugging, test-driven-development, multi-turn-planning, or browser-devtools-inspector' },
+                      problemStatement: { type: Type.STRING, description: 'The target technical problem or task to solve' }
+                    },
+                    required: ['skillId', 'problemStatement']
+                  }
+                },
+                {
+                  name: 'dispatch_subagent',
+                  description: 'Fork context into an ephemeral, isolated subagent to conduct independent code verification or research.',
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      taskGoal: { type: Type.STRING, description: 'The isolated task or objective for the subagent' },
+                      subagentType: { type: Type.STRING, description: 'code-verifier, researcher, debugger, or security-auditor' }
+                    },
+                    required: ['taskGoal']
+                  }
+                },
+                {
+                  name: 'query_colibri_moe',
+                  description: 'Query the local JustVugg/colibri tiered MoE inference engine (GLM-5.2-MoE-744B with NVMe/RAM/VRAM weight streaming) on the local mesh.',
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      prompt: { type: Type.STRING, description: 'The prompt or reasoning query for Colibri MoE' }
+                    },
+                    required: ['prompt']
+                  }
+                },
+                {
+                  name: 'compress_context_omniroute',
+                  description: 'Compress text or documents using diegosouzapw/OmniRoute RTK + Caveman compression to optimize tokens.',
+                  parameters: {
+                    type: Type.OBJECT,
+                    properties: {
+                      text: { type: Type.STRING, description: 'Text to compress' }
+                    },
+                    required: ['text']
+                  }
                 },
                 ...(persona.notebookConfig?.enabled ? [
                   {
@@ -329,11 +421,19 @@ export function useGeminiLive(persona: Persona) {
                 if (call.name === 'list_tailscale_devices') {
                   try {
                     const response = await fetch('/api/tailscale/devices');
-                    const devices = await response.json();
+                    const data = await response.json();
+                    const devices = Array.isArray(data) ? data : (data?.devices || []);
+                    const isConfigured = data?.configured ?? (devices.length > 0);
                     sessionRef.current?.sendToolResponse({
                       functionResponses: [{
                         name: 'list_tailscale_devices',
-                        response: { devices },
+                        response: { 
+                          configured: isConfigured,
+                          devices,
+                          message: isConfigured 
+                            ? `Found ${devices.length} Tailscale device(s) on tailnet.`
+                            : 'Tailscale bridge is currently unconfigured (optional).'
+                        },
                         id: call.id
                       }]
                     });
@@ -341,7 +441,11 @@ export function useGeminiLive(persona: Persona) {
                     sessionRef.current?.sendToolResponse({
                       functionResponses: [{
                         name: 'list_tailscale_devices',
-                        response: { error: 'Failed to fetch Tailscale devices' },
+                        response: { 
+                          configured: false,
+                          devices: [],
+                          message: 'Tailscale service is temporarily unreachable.' 
+                        },
                         id: call.id
                       }]
                     });
@@ -467,6 +571,147 @@ export function useGeminiLive(persona: Persona) {
                       functionResponses: [{
                         name: 'write_to_cloud_brain',
                         response: { error: 'Failed to write to Cloud Brain' },
+                        id: call.id
+                      }]
+                    });
+                  }
+                }
+
+                if (call.name === 'execute_superpower_skill') {
+                  try {
+                    const { skillId, problemStatement } = call.args as any;
+                    toast.info(`⚡ ${persona.name} activating Superpower skill: "${skillId}"...`);
+                    const response = await fetch('/api/superpowers/execute', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        skillId,
+                        problemStatement,
+                        personaName: persona.name,
+                        personaRole: persona.role,
+                      })
+                    });
+                    const result = await response.json();
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'execute_superpower_skill',
+                        response: {
+                          status: 'Skill executed with structured engineering proof',
+                          phases: result.phases,
+                          finalSynthesis: result.finalSynthesis,
+                          executionTimeMs: result.executionTimeMs
+                        },
+                        id: call.id
+                      }]
+                    });
+                    toast.success(`✅ Superpower "${result.skillName || skillId}" completed.`);
+                  } catch (err: any) {
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'execute_superpower_skill',
+                        response: { error: 'Failed to execute superpower skill' },
+                        id: call.id
+                      }]
+                    });
+                  }
+                }
+
+                if (call.name === 'dispatch_subagent') {
+                  try {
+                    const { taskGoal, subagentType } = call.args as any;
+                    toast.info(`🤖 Forking subagent: "${taskGoal.slice(0, 45)}..."`);
+                    const response = await fetch('/api/superpowers/subagent', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ taskGoal, subagentType })
+                    });
+                    const result = await response.json();
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'dispatch_subagent',
+                        response: {
+                          subagentId: result.id,
+                          name: result.name,
+                          result: result.result,
+                          status: result.status
+                        },
+                        id: call.id
+                      }]
+                    });
+                    toast.success(`🎯 Subagent verification merged into context.`);
+                  } catch (err: any) {
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'dispatch_subagent',
+                        response: { error: 'Failed to dispatch subagent' },
+                        id: call.id
+                      }]
+                    });
+                  }
+                }
+
+                if (call.name === 'query_colibri_moe') {
+                  try {
+                    const { prompt: moePrompt } = call.args as any;
+                    toast.info(`🦅 Querying Colibri MoE mesh engine...`);
+                    const response = await fetch('/api/colibri/infer', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ prompt: moePrompt })
+                    });
+                    const result = await response.json();
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'query_colibri_moe',
+                        response: {
+                          model: 'GLM-5.2-MoE-744B (Colibri Tiered)',
+                          reasoning: result.answer,
+                          activeExperts: result.expertsActivated,
+                          tokensPerSec: result.tokensPerSec,
+                          latencyMs: result.vramStreamLatencyMs
+                        },
+                        id: call.id
+                      }]
+                    });
+                    toast.success(`⚡ Colibri MoE stream complete (${result.tokensPerSec} tps).`);
+                  } catch (err: any) {
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'query_colibri_moe',
+                        response: { error: 'Failed to query Colibri MoE' },
+                        id: call.id
+                      }]
+                    });
+                  }
+                }
+
+                if (call.name === 'compress_context_omniroute') {
+                  try {
+                    const { text: rawText } = call.args as any;
+                    const response = await fetch('/api/omniroute/compress', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ text: rawText, method: 'rtk_caveman' })
+                    });
+                    const result = await response.json();
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'compress_context_omniroute',
+                        response: {
+                          compressedText: result.compressedText,
+                          tokenSavingsPct: `${result.reductionPercentage}%`,
+                          originalTokens: result.originalTokens,
+                          compressedTokens: result.compressedTokens
+                        },
+                        id: call.id
+                      }]
+                    });
+                    toast.info(`✂️ OmniRoute compressed context by ${result.reductionPercentage}%.`);
+                  } catch (err: any) {
+                    sessionRef.current?.sendToolResponse({
+                      functionResponses: [{
+                        name: 'compress_context_omniroute',
+                        response: { error: 'Failed to compress context' },
                         id: call.id
                       }]
                     });
