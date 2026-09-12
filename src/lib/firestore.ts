@@ -27,7 +27,7 @@ export interface FirestoreErrorInfo {
   }
 }
 
-function handleFirestoreError(error: any, operation: FirestoreErrorInfo['operationType'], path: string | null): never {
+export function handleFirestoreError(error: any, operation: FirestoreErrorInfo['operationType'], path: string | null): never {
   const user = auth.currentUser;
   const errorInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),

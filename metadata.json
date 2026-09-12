@@ -1,6 +1,6 @@
 {
-  "name": "PersonaLive: Multi-Voice AI",
-  "description": "A live, multi-voice synthesis app featuring distinct AI personas with unique memories and attributes, powered by Gemini Multimodal Live API.",
+  "name": "Knight Armor — The Voice Citadel",
+  "description": "Enter the Citadel. A private Knight Armor voice selection experience for Multivoice-router.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

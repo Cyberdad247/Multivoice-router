@@ -35,6 +35,20 @@ service cloud.firestore {
         && (data.createdAt == request.time);
     }
 
+    // Voice Sample Validation
+    function isValidVoiceSample(data) {
+      return data.keys().hasAll(['id', 'personaId', 'name', 'storagePath', 'downloadUrl', 'ownerId'])
+        && data.id is string && data.id.size() <= 128
+        && data.personaId is string && data.personaId.size() <= 100
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 128
+        && data.storagePath is string && data.storagePath.size() <= 512
+        && data.downloadUrl is string && data.downloadUrl.size() <= 1024
+        && data.ownerId == request.auth.uid
+        && (data.notes == null || (data.notes is string && data.notes.size() <= 500))
+        && (data.transcript == null || (data.transcript is string && data.transcript.size() <= 1000))
+        && (data.createdAt == request.time);
+    }
+
     match /personas/{personaId} {
       allow get: if isOwner(existing());
       allow list: if isVerified() && resource.data.ownerId == request.auth.uid;
@@ -44,7 +58,8 @@ service cloud.firestore {
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'name', 'role', 'description', 'voice', 'systemInstruction', 
           'attributes', 'memory', 'sources', 'notebookConfig', 
-          'bridgeConfig', 'rustDeskConfig', 'updatedAt'
+          'bridgeConfig', 'rustDeskConfig', 'baseVoiceSampleId', 
+          'baseVoiceSampleUrl', 'updatedAt'
         ]);
       allow delete: if isOwner(existing());
     }
@@ -55,6 +70,16 @@ service cloud.firestore {
       allow create: if isVerified() && isValidId(transcriptId) && isValidTranscript(incoming()) && (incoming().id == transcriptId);
       // Transcripts are immutable in this flow
       allow update, delete: if false;
+    }
+
+    match /voice_samples/{sampleId} {
+      allow get: if isOwner(existing());
+      allow list: if isVerified() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidId(sampleId) && isValidVoiceSample(incoming()) && (incoming().id == sampleId);
+      allow update: if isOwner(existing()) && isValidVoiceSample(incoming())
+        && incoming().id == existing().id
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'isBaseReference', 'notes', 'transcript']);
+      allow delete: if isOwner(existing());
     }
   }
 }

@@ -5,6 +5,7 @@ import { Brain, Mic2, Sparkles, Edit2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { getVoiceMetadata } from '../constants/voices';
+import { PlayVoicePreviewButton } from './PlayVoicePreviewButton';
 
 interface PersonaCardProps {
   persona: Persona;
@@ -87,6 +88,17 @@ export function PersonaCard({ persona, isSelected, onSelect, onEdit, disabled }:
           <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", getVoiceMetadata(persona.voice).color)}>
             {getVoiceMetadata(persona.voice).tag}
           </Badge>
+        </div>
+
+        <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between gap-2">
+          <span className="text-[10px] uppercase font-mono tracking-wider text-muted-foreground/80">
+            Voice Preview
+          </span>
+          <PlayVoicePreviewButton
+            persona={persona}
+            variant="compact"
+            disabled={disabled}
+          />
         </div>
       </CardContent>
       </div>

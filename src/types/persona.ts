@@ -36,6 +36,10 @@ export interface Persona {
     personality: string;
   };
   memory: string[];
+  armorSlot?: number;
+  traits?: string[];
+  color?: string;
+  signatureQuote?: string;
   cloudBrainLogs?: CloudBrainLogEntry[];
   ragConfig?: {
     enabled?: boolean;
@@ -65,6 +69,10 @@ export interface Persona {
   };
   backdropUrl?: string;
   backdropTheme?: string;
+  crop?: [number, number, number, number];
+  previewUrl?: string;
+  baseVoiceSampleId?: string;
+  baseVoiceSampleUrl?: string;
 }
 
 export interface TailscaleDevice {

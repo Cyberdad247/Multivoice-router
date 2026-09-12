@@ -60,10 +60,33 @@
             "server": { "type": "string" }
           }
         },
+        "baseVoiceSampleId": { "type": "string" },
+        "baseVoiceSampleUrl": { "type": "string" },
         "ownerId": { "type": "string" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "role", "ownerId"]
+    },
+    "VoiceSample": {
+      "title": "Knight Voice Sample",
+      "description": "Custom recorded or uploaded audio snippet stored in Firebase Storage serving as base voice reference for a knight persona.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "personaId": { "type": "string" },
+        "name": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "downloadUrl": { "type": "string" },
+        "duration": { "type": "number" },
+        "mimeType": { "type": "string" },
+        "size": { "type": "number" },
+        "isBaseReference": { "type": "boolean" },
+        "transcript": { "type": "string" },
+        "notes": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "personaId", "name", "storagePath", "downloadUrl", "ownerId"]
     },
     "Transcript": {
       "title": "Conversation Transcript",
@@ -97,6 +120,10 @@
     "/transcripts/{transcriptId}": {
       "schema": "Transcript",
       "description": "History of voice conversations."
+    },
+    "/voice_samples/{sampleId}": {
+      "schema": "VoiceSample",
+      "description": "Recorded and uploaded knight voice audio reference samples stored in Firebase Storage."
     }
   }
 }

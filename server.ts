@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { google } from 'googleapis';
 import cookieSession from 'cookie-session';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Modality } from '@google/genai';
 import os from 'os';
 
 dotenv.config();
@@ -374,6 +374,96 @@ Guidelines:
     } catch (error: any) {
       console.error('RAG Synthesize Error:', error);
       res.status(500).json({ error: error?.message || 'Failed to synthesize response' });
+    }
+  });
+
+  // Persona Synthetic Voice Preview using Gemini TTS (gemini-3.1-flash-tts-preview)
+  const PERSONA_PREVIEW_QUOTES: Record<string, string> = {
+    'merlin-omega': 'I am MERLIN Omega, Sovereign System 2 Orchestrator. Anti-Gravity Forge online and standing by.',
+    'sir-codex': 'Sir Codex reporting. WASM32 compilation matrix and zero-copy shared memory endpoints are verified.',
+    'sir-boris': 'Greetings from Sir Boris! 3D kinetic transforms and luxury brutalist physics are primed and ready.',
+    'sir-gideon': 'Sir Gideon standing watch. Cryptographic verification protocols and Iron Gate audit bounds active.',
+    'nova': 'Nova here! Quantum horizons are opening up—ready to explore what lies ahead.',
+    'elara': 'Greetings, I am Elara. Let us look to the lessons of the past to illuminate our present journey.',
+    'jax': 'Jax online. Firewalls scanned, dark sprawl connected, let us write code that counts.',
+    'atlas': 'Atlas here. Midnight abyss mapped, atmospheric pressure holding steady in the deep.',
+    'lyra': 'Hello! Lyra here, translating algorithmic frequencies into vibrant waves of imagination.',
+    'sage': 'Welcome. I am Sage. Take a deep breath and listen to the rhythm of the living world.'
+  };
+
+  app.post('/api/voice/preview', async (req, res) => {
+    try {
+      const { personaId, voice, text, name, role } = req.body;
+      const ai = getGenAI();
+
+      let targetVoice = voice || 'Zephyr';
+      const knownVoices = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede'];
+      const matchedVoice = knownVoices.find(v => v.toLowerCase() === String(targetVoice).toLowerCase()) || 'Zephyr';
+
+      let promptText = text;
+      if (!promptText) {
+        if (personaId && PERSONA_PREVIEW_QUOTES[personaId]) {
+          promptText = PERSONA_PREVIEW_QUOTES[personaId];
+        } else if (name) {
+          promptText = `Hello! I am ${name}, ${role || 'your AI persona'}. Ready to begin.`;
+        } else {
+          promptText = 'Hello! This is a brief sample of my synthetic voice powered by Gemini.';
+        }
+      }
+
+      console.log(`[TTS Preview] Requesting voice preview for "${personaId || name || 'default'}" with voice: ${matchedVoice}`);
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(500).json({ error: 'GEMINI_API_KEY environment variable is required' });
+      }
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent?key=${apiKey}`;
+      const payload = {
+        contents: [{ parts: [{ text: promptText }] }],
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: matchedVoice }
+            }
+          }
+        }
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini TTS API returned error [${response.status}]: ${errorText}`);
+      }
+
+      const data = await response.json();
+      const audioPart = data.candidates?.[0]?.content?.parts?.[0];
+      const base64Audio = audioPart?.inlineData?.data;
+      const mimeType = audioPart?.inlineData?.mimeType || 'audio/l16; rate=24000; channels=1';
+
+      if (!base64Audio) {
+        throw new Error('No audio returned by Gemini TTS engine');
+      }
+
+      res.json({
+        audio: base64Audio,
+        mimeType: mimeType,
+        text: promptText,
+        voice: matchedVoice
+      });
+    } catch (error: any) {
+      console.error('[TTS Preview] Error generating preview:', error);
+      res.status(500).json({ 
+        error: error?.message || 'Failed to generate voice preview',
+        details: String(error)
+      });
     }
   });
 
