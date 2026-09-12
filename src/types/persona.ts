@@ -29,6 +29,7 @@ export interface Persona {
   role: string;
   description: string;
   voice: GeminiLiveVoice;
+  synthesisEngine?: string; // Specific synthesis engine (e.g., 'Gemini-Voice-1.0' or custom model)
   systemInstruction: string;
   attributes: {
     tone: string;

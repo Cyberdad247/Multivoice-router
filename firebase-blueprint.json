@@ -110,6 +110,45 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "personaId", "ownerId"]
+    },
+    "VocalLicense": {
+      "title": "Sovereign Vocal License",
+      "description": "Cryptographic vocal rights deed and timbre watermark certification from Vocal-license-engine.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "personaId": { "type": "string" },
+        "licenseType": { "type": "string", "enum": ["sanctuary", "sovereign", "commercial", "royal"] },
+        "licensee": { "type": "string" },
+        "timbreHash": { "type": "string" },
+        "c2paSigned": { "type": "boolean" },
+        "watermarkKey": { "type": "string" },
+        "rights": { "type": "array", "items": { "type": "string" } },
+        "terms": { "type": "string" },
+        "royaltyBps": { "type": "number" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "personaId", "licenseType", "licensee", "timbreHash", "ownerId"]
+    },
+    "ArtemisTestRun": {
+      "title": "Google Artemis Test Run",
+      "description": "Autonomous device test execution trace and verification benchmark from Google Artemis.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "personaId": { "type": "string" },
+        "taskPrompt": { "type": "string" },
+        "status": { "type": "string", "enum": ["passed", "failed", "running"] },
+        "successRate": { "type": "number" },
+        "actionsExecuted": { "type": "array" },
+        "deviceTarget": { "type": "string" },
+        "logs": { "type": "array", "items": { "type": "string" } },
+        "screenshotUrl": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "personaId", "taskPrompt", "status", "ownerId"]
     }
   },
   "firestore": {
@@ -124,6 +163,14 @@
     "/voice_samples/{sampleId}": {
       "schema": "VoiceSample",
       "description": "Recorded and uploaded knight voice audio reference samples stored in Firebase Storage."
+    },
+    "/vocal_licenses/{licenseId}": {
+      "schema": "VocalLicense",
+      "description": "Sovereign vocal licensing deeds and cryptographic timbre hashes."
+    },
+    "/artemis_test_runs/{runId}": {
+      "schema": "ArtemisTestRun",
+      "description": "Google Artemis autonomous device automation and benchmark test runs."
     }
   }
 }

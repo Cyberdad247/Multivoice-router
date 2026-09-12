@@ -14,6 +14,8 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { Persona } from '../types/persona';
+import { VocalLicense } from '../types/license';
+import { ArtemisTestRun } from '../types/artemis';
 
 export interface FirestoreErrorInfo {
   error: string;
@@ -102,3 +104,86 @@ export const transcriptService = {
     }
   }
 };
+
+export const vocalLicenseService = {
+  async saveLicense(license: VocalLicense): Promise<void> {
+    if (!auth.currentUser) return;
+    const path = `vocal_licenses/${license.id}`;
+    try {
+      const docRef = doc(db, 'vocal_licenses', license.id);
+      await setDoc(docRef, {
+        ...license,
+        ownerId: auth.currentUser.uid,
+        createdAt: serverTimestamp()
+      }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, 'write', path);
+    }
+  },
+
+  async getLicense(licenseId: string): Promise<VocalLicense | null> {
+    const path = `vocal_licenses/${licenseId}`;
+    try {
+      const q = query(
+        collection(db, 'vocal_licenses'),
+        where('id', '==', licenseId),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) return null;
+      return snapshot.docs[0].data() as VocalLicense;
+    } catch (e) {
+      handleFirestoreError(e, 'get', path);
+    }
+  },
+
+  async listLicenses(personaId?: string): Promise<VocalLicense[]> {
+    if (!auth.currentUser) return [];
+    const path = 'vocal_licenses';
+    try {
+      const constraints: any[] = [where('ownerId', '==', auth.currentUser.uid)];
+      if (personaId) {
+        constraints.push(where('personaId', '==', personaId));
+      }
+      const q = query(collection(db, 'vocal_licenses'), ...constraints);
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => doc.data() as VocalLicense);
+    } catch (e) {
+      handleFirestoreError(e, 'list', path);
+    }
+  }
+};
+
+export const artemisService = {
+  async saveTestRun(run: ArtemisTestRun): Promise<void> {
+    if (!auth.currentUser) return;
+    const path = `artemis_test_runs/${run.id}`;
+    try {
+      const docRef = doc(db, 'artemis_test_runs', run.id);
+      await setDoc(docRef, {
+        ...run,
+        ownerId: auth.currentUser.uid,
+        createdAt: serverTimestamp()
+      }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, 'write', path);
+    }
+  },
+
+  async listTestRuns(personaId?: string): Promise<ArtemisTestRun[]> {
+    if (!auth.currentUser) return [];
+    const path = 'artemis_test_runs';
+    try {
+      const constraints: any[] = [where('ownerId', '==', auth.currentUser.uid)];
+      if (personaId) {
+        constraints.push(where('personaId', '==', personaId));
+      }
+      const q = query(collection(db, 'artemis_test_runs'), ...constraints);
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => doc.data() as ArtemisTestRun);
+    } catch (e) {
+      handleFirestoreError(e, 'list', path);
+    }
+  }
+};
+

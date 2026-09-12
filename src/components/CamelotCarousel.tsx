@@ -18,9 +18,15 @@ import {
   ExternalLink,
   Shield,
   Loader2,
-  PhoneCall
+  PhoneCall,
+  Award,
+  Cpu,
+  Bot,
+  ChevronDown,
+  SlidersHorizontal
 } from 'lucide-react';
 import { OrbitalFloorCanvas } from './OrbitalFloorCanvas';
+import { AutonomousRouterBar } from './AutonomousRouterBar';
 
 export interface CamelotCarouselProps {
   personas: Persona[];
@@ -37,6 +43,13 @@ export interface CamelotCarouselProps {
   onOpenDiagnostics?: () => void;
   onOpenVoiceStudio?: () => void;
   onOpenTelephony?: () => void;
+  onOpenLicense?: () => void;
+  onOpenArtemis?: () => void;
+  onOpenBlastDag?: () => void;
+  onCloseAllModals?: () => void;
+  userFriendlyMode?: boolean;
+  onToggleUserFriendlyMode?: (friendly: boolean) => void;
+  latestVoiceTranscript?: string;
 }
 
 const numerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
@@ -54,8 +67,16 @@ export function CamelotCarousel({
   onToggleBlastHud,
   onOpenDiagnostics,
   onOpenVoiceStudio,
-  onOpenTelephony
+  onOpenTelephony,
+  onOpenLicense,
+  onOpenArtemis,
+  onOpenBlastDag,
+  onCloseAllModals,
+  userFriendlyMode = true,
+  onToggleUserFriendlyMode,
+  latestVoiceTranscript
 }: CamelotCarouselProps) {
+  const [showProToolsMenu, setShowProToolsMenu] = useState(false);
   const totalCount = personas.length;
   const currentIndex = personas.findIndex(p => p.id === selectedPersona.id);
   const index = currentIndex >= 0 ? currentIndex : 0;
@@ -387,6 +408,12 @@ export function CamelotCarousel({
       } else if (e.key === 't' || e.key === 'T') {
         e.preventDefault();
         onOpenTelephony?.();
+      } else if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        onOpenLicense?.();
+      } else if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        onOpenArtemis?.();
       } else if (e.key === 'd' || e.key === 'D') {
         e.preventDefault();
         onOpenDiagnostics?.();
@@ -395,7 +422,7 @@ export function CamelotCarousel({
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [totalCount, selectKnight, handleAwaken, onConnect, onToggleBlastHud, onOpenTelephony, onOpenDiagnostics]);
+  }, [totalCount, selectKnight, handleAwaken, onConnect, onToggleBlastHud, onOpenTelephony, onOpenLicense, onOpenArtemis, onOpenDiagnostics]);
 
   // Pointer drag & mouse tilt handlers
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -535,56 +562,196 @@ export function CamelotCarousel({
             <span>Haptics: {hapticAudio ? 'ON' : 'MUTED'}</span>
           </button>
 
-          {/* Voice Studio button */}
-          {onOpenVoiceStudio && (
+          {/* Mode Switcher: Friendly Auto vs Pro Developer */}
+          {onToggleUserFriendlyMode && (
             <button
               type="button"
-              className="text-button text-xs hidden md:inline-flex text-amber-300/80 hover:text-amber-200"
-              onClick={onOpenVoiceStudio}
-              title="Open Knight Voice Studio to record or upload custom voice references"
+              className={`text-button text-xs flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${
+                userFriendlyMode 
+                  ? 'text-emerald-300 border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20' 
+                  : 'text-zinc-400 border border-zinc-700 bg-zinc-800/40 hover:text-zinc-200'
+              }`}
+              onClick={() => onToggleUserFriendlyMode(!userFriendlyMode)}
+              title={userFriendlyMode ? "Currently in Smart Friendly Auto mode. Click to switch to Pro mode." : "Currently in Pro Developer mode. Click to switch to Smart Friendly mode."}
             >
-              <Mic className="w-3.5 h-3.5" />
-              <span>Voice Studio</span>
+              <Bot className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{userFriendlyMode ? 'Smart Auto UI' : 'Mode: Pro'}</span>
             </button>
           )}
 
-          {/* System 2 B.L.A.S.T. DAG button */}
-          {onToggleBlastHud && (
-            <button
-              type="button"
-              className={`text-button text-xs hidden lg:inline-flex ${showBlastHud ? 'text-amber-300' : ''}`}
-              onClick={onToggleBlastHud}
-              title="Inspect System 2 B.L.A.S.T. Kinetic Protocol DAG"
-            >
-              <Workflow className="w-3.5 h-3.5" />
-              <span>B.L.A.S.T. DAG</span>
-            </button>
-          )}
+          {/* If userFriendlyMode is ON, collapse developer tools into a clean Pro Tools popover */}
+          {userFriendlyMode ? (
+            <div className="relative">
+              <button
+                type="button"
+                className="text-button text-xs text-[#dfc486] hover:text-[#f3ddaa] flex items-center gap-1.5 border border-[#dfc486]/30 px-2.5 py-1 rounded bg-[#dfc486]/5"
+                onClick={() => setShowProToolsMenu(!showProToolsMenu)}
+                title="Open Pro Engineering Tools menu"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>Pro Tools</span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${showProToolsMenu ? 'rotate-180' : ''}`} />
+              </button>
 
-          {/* Sovereign Telephony button */}
-          {onOpenTelephony && (
-            <button
-              type="button"
-              className="text-button text-xs hidden lg:inline-flex text-cyan-300/80 hover:text-cyan-200"
-              onClick={onOpenTelephony}
-              title="Open Sovereign Telephony & SIP Trunking [Hotkey: T]"
-            >
-              <PhoneCall className="w-3.5 h-3.5" />
-              <span>Telephony [T]</span>
-            </button>
-          )}
-
-          {/* Diagnostics Dialog */}
-          {onOpenDiagnostics && (
-            <button
-              type="button"
-              className="text-button text-xs hidden xl:inline-flex text-zinc-400 hover:text-zinc-200"
-              onClick={onOpenDiagnostics}
-              title="Open System Diagnostics & Tailscale Status"
-            >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span>Diagnostics</span>
-            </button>
+              {showProToolsMenu && (
+                <div 
+                  className="absolute right-0 top-full mt-2 w-56 rounded-lg bg-[#0d121c] border border-zinc-700/80 shadow-2xl p-1.5 z-50 text-xs font-mono backdrop-blur-md"
+                  onClick={() => setShowProToolsMenu(false)}
+                >
+                  <div className="px-2 py-1 text-[10px] text-zinc-500 font-bold uppercase border-b border-zinc-800 mb-1 flex items-center justify-between">
+                    <span>Manual Subsystems</span>
+                    <span className="text-zinc-600">Hotkeys</span>
+                  </div>
+                  {onOpenTelephony && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-2.5 py-1.5 rounded hover:bg-zinc-800 text-cyan-300 flex items-center justify-between transition-colors"
+                      onClick={onOpenTelephony}
+                    >
+                      <span className="flex items-center gap-2">
+                        <PhoneCall className="w-3.5 h-3.5" />
+                        <span>Telephony</span>
+                      </span>
+                      <kbd className="text-[10px] text-zinc-400 bg-zinc-900 border border-zinc-800 px-1.5 rounded">T</kbd>
+                    </button>
+                  )}
+                  {onOpenLicense && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-2.5 py-1.5 rounded hover:bg-zinc-800 text-amber-300 flex items-center justify-between transition-colors"
+                      onClick={onOpenLicense}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Award className="w-3.5 h-3.5" />
+                        <span>Vocal License</span>
+                      </span>
+                      <kbd className="text-[10px] text-zinc-400 bg-zinc-900 border border-zinc-800 px-1.5 rounded">L</kbd>
+                    </button>
+                  )}
+                  {onOpenArtemis && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-2.5 py-1.5 rounded hover:bg-zinc-800 text-blue-300 flex items-center justify-between transition-colors"
+                      onClick={onOpenArtemis}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Cpu className="w-3.5 h-3.5" />
+                        <span>Artemis Automation</span>
+                      </span>
+                      <kbd className="text-[10px] text-zinc-400 bg-zinc-900 border border-zinc-800 px-1.5 rounded">A</kbd>
+                    </button>
+                  )}
+                  {onToggleBlastHud && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-2.5 py-1.5 rounded hover:bg-zinc-800 text-amber-400 flex items-center justify-between transition-colors"
+                      onClick={onToggleBlastHud}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Workflow className="w-3.5 h-3.5" />
+                        <span>B.L.A.S.T. DAG</span>
+                      </span>
+                      <kbd className="text-[10px] text-zinc-400 bg-zinc-900 border border-zinc-800 px-1.5 rounded">B</kbd>
+                    </button>
+                  )}
+                  {onOpenVoiceStudio && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-2.5 py-1.5 rounded hover:bg-zinc-800 text-emerald-300 flex items-center justify-between transition-colors"
+                      onClick={onOpenVoiceStudio}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Mic className="w-3.5 h-3.5" />
+                        <span>Voice Studio</span>
+                      </span>
+                    </button>
+                  )}
+                  {onOpenDiagnostics && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-2.5 py-1.5 rounded hover:bg-zinc-800 text-zinc-400 flex items-center justify-between transition-colors"
+                      onClick={onOpenDiagnostics}
+                    >
+                      <span className="flex items-center gap-2">
+                        <ShieldAlert className="w-3.5 h-3.5" />
+                        <span>Diagnostics</span>
+                      </span>
+                      <kbd className="text-[10px] text-zinc-400 bg-zinc-900 border border-zinc-800 px-1.5 rounded">D</kbd>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            // Pro Mode: Show all buttons across header
+            <>
+              {onOpenVoiceStudio && (
+                <button
+                  type="button"
+                  className="text-button text-xs hidden md:inline-flex text-amber-300/80 hover:text-amber-200"
+                  onClick={onOpenVoiceStudio}
+                  title="Open Knight Voice Studio"
+                >
+                  <Mic className="w-3.5 h-3.5" />
+                  <span>Voice Studio</span>
+                </button>
+              )}
+              {onToggleBlastHud && (
+                <button
+                  type="button"
+                  className={`text-button text-xs hidden lg:inline-flex ${showBlastHud ? 'text-amber-300' : ''}`}
+                  onClick={onToggleBlastHud}
+                  title="Inspect System 2 B.L.A.S.T. Kinetic Protocol DAG"
+                >
+                  <Workflow className="w-3.5 h-3.5" />
+                  <span>B.L.A.S.T. DAG</span>
+                </button>
+              )}
+              {onOpenTelephony && (
+                <button
+                  type="button"
+                  className="text-button text-xs hidden lg:inline-flex text-cyan-300/80 hover:text-cyan-200"
+                  onClick={onOpenTelephony}
+                  title="Open Sovereign Telephony & SIP Trunking [Hotkey: T]"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>Telephony [T]</span>
+                </button>
+              )}
+              {onOpenLicense && (
+                <button
+                  type="button"
+                  className="text-button text-xs hidden md:inline-flex text-amber-300/80 hover:text-amber-200"
+                  onClick={onOpenLicense}
+                  title="Open Sovereign Vocal License & Provenance Engine [Hotkey: L]"
+                >
+                  <Award className="w-3.5 h-3.5" />
+                  <span>Vocal License [L]</span>
+                </button>
+              )}
+              {onOpenArtemis && (
+                <button
+                  type="button"
+                  className="text-button text-xs hidden xl:inline-flex text-cyan-400 hover:text-cyan-300"
+                  onClick={onOpenArtemis}
+                  title="Open Google Artemis Autonomous Device Automation & Benchmark [Hotkey: A]"
+                >
+                  <Cpu className="w-3.5 h-3.5" />
+                  <span>Artemis [A]</span>
+                </button>
+              )}
+              {onOpenDiagnostics && (
+                <button
+                  type="button"
+                  className="text-button text-xs hidden xl:inline-flex text-zinc-400 hover:text-zinc-200"
+                  onClick={onOpenDiagnostics}
+                  title="Open System Diagnostics & Tailscale Status"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Diagnostics</span>
+                </button>
+              )}
+            </>
           )}
 
           {/* Private Sanctuary Badge */}
@@ -597,6 +764,22 @@ export function CamelotCarousel({
           </span>
         </div>
       </header>
+
+      {/* Autonomous Embedded Router Deck */}
+      <AutonomousRouterBar
+        selectedPersona={selectedPersona}
+        personas={personas}
+        onSelectPersona={onSelectPersona}
+        onOpenTelephony={onOpenTelephony || (() => {})}
+        onOpenLicense={onOpenLicense || (() => {})}
+        onOpenArtemis={onOpenArtemis || (() => {})}
+        onOpenBlastDag={onOpenBlastDag || onToggleBlastHud || (() => {})}
+        onOpenVoiceStudio={onOpenVoiceStudio || (() => {})}
+        onCloseAllModals={onCloseAllModals}
+        userFriendlyMode={userFriendlyMode}
+        onToggleUserFriendlyMode={onToggleUserFriendlyMode || (() => {})}
+        latestVoiceTranscript={latestVoiceTranscript}
+      />
 
       {/* Main Content */}
       <main className="citadel-main">

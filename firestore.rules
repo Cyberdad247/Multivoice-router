@@ -49,6 +49,29 @@ service cloud.firestore {
         && (data.createdAt == request.time);
     }
 
+    // Vocal License Validation (Vocal-license-engine)
+    function isValidVocalLicense(data) {
+      return data.keys().hasAll(['id', 'personaId', 'licenseType', 'licensee', 'timbreHash', 'ownerId'])
+        && data.id is string && data.id.size() <= 128
+        && data.personaId is string && data.personaId.size() <= 100
+        && data.licenseType in ['sanctuary', 'sovereign', 'commercial', 'royal']
+        && data.licensee is string && data.licensee.size() <= 200
+        && data.timbreHash is string && data.timbreHash.size() <= 256
+        && data.ownerId == request.auth.uid
+        && (data.createdAt == request.time);
+    }
+
+    // Google Artemis Test Run Validation
+    function isValidArtemisTestRun(data) {
+      return data.keys().hasAll(['id', 'personaId', 'taskPrompt', 'status', 'ownerId'])
+        && data.id is string && data.id.size() <= 128
+        && data.personaId is string && data.personaId.size() <= 100
+        && data.taskPrompt is string && data.taskPrompt.size() <= 1000
+        && data.status in ['passed', 'failed', 'running']
+        && data.ownerId == request.auth.uid
+        && (data.createdAt == request.time);
+    }
+
     match /personas/{personaId} {
       allow get: if isOwner(existing());
       allow list: if isVerified() && resource.data.ownerId == request.auth.uid;
@@ -80,6 +103,20 @@ service cloud.firestore {
         && incoming().id == existing().id
         && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'isBaseReference', 'notes', 'transcript']);
       allow delete: if isOwner(existing());
+    }
+
+    match /vocal_licenses/{licenseId} {
+      allow get: if isOwner(existing());
+      allow list: if isVerified() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidId(licenseId) && isValidVocalLicense(incoming()) && (incoming().id == licenseId);
+      allow update, delete: if isOwner(existing());
+    }
+
+    match /artemis_test_runs/{runId} {
+      allow get: if isOwner(existing());
+      allow list: if isVerified() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerified() && isValidId(runId) && isValidArtemisTestRun(incoming()) && (incoming().id == runId);
+      allow update, delete: if isOwner(existing());
     }
   }
 }

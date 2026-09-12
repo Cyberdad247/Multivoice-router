@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { PERSONAS as INITIAL_PERSONAS } from './constants/personas';
 import { Persona, TailscaleDevice } from './types/persona';
 import { useGeminiLive } from './hooks/use-gemini-live';
@@ -26,6 +26,8 @@ import { VoiceStudio } from './components/VoiceStudio';
 import { BlastDagModal } from './components/BlastDagModal';
 import { TelephonyModal } from './components/TelephonyModal';
 import { SystemVitalsBar } from './components/SystemVitalsBar';
+import { VocalLicenseModal } from './components/VocalLicenseModal';
+import { ArtemisRunnerModal } from './components/ArtemisRunnerModal';
 import { 
   Mic, 
   MicOff, 
@@ -52,7 +54,8 @@ import {
   Mic2,
   Workflow,
   Layers,
-  LayoutGrid
+  LayoutGrid,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -72,6 +75,18 @@ export default function App() {
   const [showBlastHud, setShowBlastHud] = useState(false);
   const [showVoiceStudio, setShowVoiceStudio] = useState(false);
   const [showTelephony, setShowTelephony] = useState(false);
+  const [showLicense, setShowLicense] = useState(false);
+  const [showArtemis, setShowArtemis] = useState(false);
+  const [userFriendlyMode, setUserFriendlyMode] = useState(true);
+
+  const handleCloseAllModals = useCallback(() => {
+    setShowBlastHud(false);
+    setShowVoiceStudio(false);
+    setShowTelephony(false);
+    setShowLicense(false);
+    setShowArtemis(false);
+    setIsDiagnosticOpen(false);
+  }, []);
 
   const fetchTailscaleDevices = useCallback(async (isManual = false) => {
     setIsLoadingDevices(true);
@@ -192,6 +207,15 @@ export default function App() {
     audioLevel 
   } = useGeminiLive(selectedPersona);
 
+  const latestUserTranscript = useMemo(() => {
+    for (let i = transcription.length - 1; i >= 0; i--) {
+      if (transcription[i].role === 'user') {
+        return transcription[i].text;
+      }
+    }
+    return '';
+  }, [transcription]);
+
   const handleToggleConnection = () => {
     if (isConnected) {
       disconnect();
@@ -270,12 +294,20 @@ export default function App() {
         onOpenDiagnostics={() => setIsDiagnosticOpen(true)}
         onOpenVoiceStudio={() => setShowVoiceStudio(true)}
         onOpenTelephony={() => setShowTelephony(true)}
+        onOpenLicense={() => setShowLicense(true)}
+        onOpenArtemis={() => setShowArtemis(true)}
+        onOpenBlastDag={() => setShowBlastHud(true)}
+        onCloseAllModals={handleCloseAllModals}
+        userFriendlyMode={userFriendlyMode}
+        onToggleUserFriendlyMode={setUserFriendlyMode}
+        latestVoiceTranscript={latestUserTranscript}
       />
 
       {/* System 2 Sovereign Vitals & Enclave HUD Bar */}
       <SystemVitalsBar
         selectedPersona={selectedPersona}
         isConnected={isConnected}
+        userFriendlyMode={userFriendlyMode}
       />
 
       {/* Knight Voice Studio Modal (Firebase Storage) */}
@@ -302,6 +334,20 @@ export default function App() {
         selectedPersona={selectedPersona}
         isConnected={isConnected}
         onToggleConnection={handleToggleConnection}
+      />
+
+      {/* Sovereign Vocal License & Provenance Engine (Cyberdad247/Vocal-license-engine) */}
+      <VocalLicenseModal
+        isOpen={showLicense}
+        onClose={() => setShowLicense(false)}
+        selectedPersona={selectedPersona}
+      />
+
+      {/* Google Artemis Autonomous Device Test Runner (google/artemis) */}
+      <ArtemisRunnerModal
+        isOpen={showArtemis}
+        onClose={() => setShowArtemis(false)}
+        selectedPersona={selectedPersona}
       />
 
       {/* Slide-over / Expandable Live HUD & Intelligence Section */}
@@ -379,6 +425,14 @@ export default function App() {
                       <Mic className="w-3.5 h-3.5 mr-1" />
                       Voice Studio
                     </TabsTrigger>
+                    <TabsTrigger value="vocal-license" className="text-xs data-[state=active]:text-[#dfc486] data-[state=active]:border-b-2 data-[state=active]:border-[#dfc486] rounded-none px-2">
+                      <Award className="w-3.5 h-3.5 mr-1" />
+                      Vocal License
+                    </TabsTrigger>
+                    <TabsTrigger value="artemis" className="text-xs data-[state=active]:text-cyan-400 data-[state=active]:border-b-2 data-[state=active]:border-cyan-400 rounded-none px-2">
+                      <Cpu className="w-3.5 h-3.5 mr-1" />
+                      Google Artemis
+                    </TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="chat" className="pt-2 max-h-[30vh] overflow-y-auto">
@@ -408,6 +462,24 @@ export default function App() {
                       selectedPersona={selectedPersona}
                       onSelectPersona={handlePersonaChange}
                       onUpdatePersona={handleSavePersona}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="vocal-license" className="pt-2 max-h-[35vh] overflow-y-auto">
+                    <VocalLicenseModal
+                      embedded={true}
+                      isOpen={true}
+                      onClose={() => {}}
+                      selectedPersona={selectedPersona}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="artemis" className="pt-2 max-h-[35vh] overflow-y-auto">
+                    <ArtemisRunnerModal
+                      embedded={true}
+                      isOpen={true}
+                      onClose={() => {}}
+                      selectedPersona={selectedPersona}
                     />
                   </TabsContent>
                 </Tabs>
