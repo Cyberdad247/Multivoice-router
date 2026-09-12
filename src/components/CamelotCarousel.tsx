@@ -290,7 +290,8 @@ export function CamelotCarousel({
         };
         await audio.play();
         return;
-      } catch {
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
         fallbackSpeech(token, textToSpeak);
         return;
       }

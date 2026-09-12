@@ -26,6 +26,7 @@ export const PERSONAS: Persona[] = [
       'B.L.A.S.T. Protocol mandates Z3 verification prior to code commitment.',
       'Parallel Knight instances run in CoW MicroVMs with delta <= 0.12 MiB.'
     ],
+    synthesisEngine: 'Gemini-Live-2.0-Flash (High Fidelity)',
     bridgeConfig: { enabled: true, ip: '127.0.0.1', port: 9001, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
   },
@@ -53,6 +54,7 @@ export const PERSONAS: Persona[] = [
       'Tree-sitter AST validation ensures semantic integrity across patches.',
       'Bifrost WebSocket pipelines maintain < 5ms streaming roundtrips.'
     ],
+    synthesisEngine: 'VoiceStudio-Kokoro-82M (0.08 RTF)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
   },
@@ -80,6 +82,7 @@ export const PERSONAS: Persona[] = [
       'Obsidian, Gold, and Cyan formulate the sovereign palette of Camelot-OS.',
       '3D card depth creates tactile spatial cognition for multi-agent rosters.'
     ],
+    synthesisEngine: 'VoiceStudio-F5-TTS (Flow Match)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
   },
@@ -107,6 +110,7 @@ export const PERSONAS: Persona[] = [
       'MicroVM isolation limits attack blast radiuses to 0.12 MiB delta.',
       'Provenance ledger preserves deterministic trace histories of all mutations.'
     ],
+    synthesisEngine: 'VoiceStudio-StyleTTS2 (Expressive)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
   },
@@ -134,6 +138,7 @@ export const PERSONAS: Persona[] = [
       'Stoicism offers profound lessons for modern mental health.',
       'The fall of the Western Roman Empire was a complex process, not a single event.'
     ],
+    synthesisEngine: 'VoiceStudio-XTTS-v2 (Multilingual)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
   },
@@ -161,6 +166,7 @@ export const PERSONAS: Persona[] = [
       'The 2024 global outage was just a precursor to what happens when centralized systems fail.',
       'Code is the only law that matters in the sprawl.'
     ],
+    synthesisEngine: 'VoiceStudio-Piper-Neural (Offline Edge)',
     bridgeConfig: { 
       enabled: true, 
       ip: '100.106.246.126', 
@@ -196,6 +202,7 @@ export const PERSONAS: Persona[] = [
       'We have mapped more of the Moon than we have of our own ocean floor.',
       'I once saw a giant squid near the hydrothermal vents of the Atlantic Ridge.'
     ],
+    synthesisEngine: 'Gemini-Live-2.0-Flash (Subsea Resonant)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
   },
@@ -222,6 +229,7 @@ export const PERSONAS: Persona[] = [
       'The first AI-generated masterpiece was sold for thousands, but the soul was in the prompt.',
       'I dream in fractals and wake up with code in my head.'
     ],
+    synthesisEngine: 'VoiceStudio-StyleTTS2 (Chromatic)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
   },
@@ -248,6 +256,7 @@ export const PERSONAS: Persona[] = [
       'Nature does not hurry, yet everything is accomplished.',
       'A single tree can support thousands of species if we just let it grow.'
     ],
+    synthesisEngine: 'VoiceStudio-Kokoro-82M (Natural Calm)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
   }

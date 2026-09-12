@@ -137,6 +137,11 @@ class VoicePreviewService {
 
       await audio.play();
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        // play() was interrupted by a call to pause() or load(), which is fine
+        console.log('Voice preview playback aborted');
+        return;
+      }
       console.error('Error generating/playing voice preview:', err);
       toast.error(err?.message || 'Failed to preview persona voice');
       this.stop();

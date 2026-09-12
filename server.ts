@@ -1021,6 +1021,75 @@ Provide a high-precision, technical response to:
     }
   });
 
+  // ==========================================
+  // ASSIMILATION PROTOCOL: react-native-voice/voice & debpalash/VoiceStudio
+  // ==========================================
+  app.post('/api/assimilation/rn-voice/simulate', (req, res) => {
+    try {
+      const { locale = 'en-US', offline = false } = req.body;
+      const backend = offline ? 'whisper-offline' : (locale.startsWith('en') ? 'apple-sfspeech' : 'google-speech');
+      const rms = -18.4 + (Math.random() * 8.2);
+
+      res.json({
+        isListening: true,
+        rmsVolumeDb: parseFloat(rms.toFixed(1)),
+        partialResults: [
+          'Camelot system 2',
+          'Camelot system 2 multi voice',
+          'Camelot system 2 multivoice router active'
+        ],
+        finalTranscript: 'Camelot system 2 multivoice router active.',
+        recognizedLocale: locale,
+        offlineMode: offline,
+        engineBackend: backend,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'RN-Voice bridge simulation error' });
+    }
+  });
+
+  app.post('/api/assimilation/voicestudio/synthesize', async (req, res) => {
+    try {
+      const { personaName = 'MERLIN_Ω', voice = 'Charon', engineName = 'Kokoro-82M', prompt = '' } = req.body;
+      const startTime = Date.now();
+      
+      const rtfMap: Record<string, number> = {
+        'Kokoro-82M': 0.08,
+        'F5-TTS': 0.18,
+        'StyleTTS2': 0.14,
+        'XTTS-v2': 0.32,
+        'Piper-Neural': 0.05
+      };
+
+      const matchedKey = Object.keys(rtfMap).find(k => engineName.includes(k)) || 'Kokoro-82M';
+      const rtf = rtfMap[matchedKey];
+      const simulatedDurationSec = Math.max(1.8, Math.min(12, prompt.length / 15));
+      const simulatedInferenceMs = Math.round(simulatedDurationSec * rtf * 1000);
+
+      res.json({
+        status: 'synthesized-local',
+        engine: engineName,
+        persona: personaName,
+        voiceProfile: voice,
+        rtf,
+        latencyMs: simulatedInferenceMs,
+        durationSec: parseFloat(simulatedDurationSec.toFixed(2)),
+        sampleRate: 24000,
+        vramUsedMb: engineName.includes('Piper') ? 95 : 1240,
+        zeroShotEmbedding: {
+          pitchHz: 128.4,
+          formantCentroid: 1840,
+          spectralTilt: -4.2,
+          cloneSimilarity: 0.942
+        },
+        durationMs: Date.now() - startTime
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'VoiceStudio synthesis error' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

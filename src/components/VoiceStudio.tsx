@@ -420,6 +420,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
     };
 
     audio.play().catch(e => {
+      if (e.name === 'AbortError') return;
       console.warn('Playback error:', e);
       setCurrentlyPlayingId(null);
     });

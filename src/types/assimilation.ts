@@ -132,3 +132,37 @@ export interface PIDesktopPackageMeta {
   permissions: string[];
   exportDate: string;
 }
+
+export interface RNVoiceEventStream {
+  isListening: boolean;
+  rmsVolumeDb: number;
+  partialResults: string[];
+  finalTranscript: string;
+  recognizedLocale: string;
+  offlineMode: boolean;
+  engineBackend: 'apple-sfspeech' | 'google-speech' | 'whisper-offline';
+}
+
+export interface VoiceStudioLocalEngine {
+  engineName: string;
+  modelFamily: 'F5-TTS' | 'StyleTTS2' | 'XTTS-v2' | 'Piper-Neural' | 'Kokoro-82M';
+  isLocalOnly: boolean;
+  vramUsageMb: number;
+  languagesSupported: number;
+  zeroShotCloningCapable: boolean;
+  sampleReferenceSec: number;
+  rtf: number;
+  status: 'online' | 'ready' | 'standby';
+}
+
+export interface VoiceAssimilationAudit {
+  target: string;
+  repoUrl: string;
+  category: string;
+  verdict: 'Adopt' | 'Integrate Bridge' | 'Fork & Refactor' | 'Reference Pattern';
+  score: number;
+  strengths: string[];
+  limitations: string[];
+  assimilationStrategy: string;
+}
+

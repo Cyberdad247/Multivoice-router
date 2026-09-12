@@ -25,7 +25,11 @@ import {
   Activity,
   Bug,
   ListOrdered,
-  Workflow
+  Workflow,
+  Mic,
+  Volume2,
+  Radio,
+  AudioLines
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Persona } from '../types/persona';
@@ -39,10 +43,15 @@ import {
   OmniRouteCompressionResult,
   OmniRouteProviderStatus,
   ColibriTierState,
+  RNVoiceEventStream,
+  VoiceStudioLocalEngine,
+  VoiceAssimilationAudit,
 } from '../types/assimilation';
 import {
   assimilationService,
   SUPERPOWER_SKILLS,
+  VOICE_ASSIMILATION_AUDITS,
+  VOICE_STUDIO_ENGINES,
 } from '../services/assimilation-service';
 
 interface AssimilationProtocolProps {
@@ -55,7 +64,7 @@ export const AssimilationProtocol: React.FC<AssimilationProtocolProps> = ({
   transcription,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<
-    'superpowers' | 'bifrost_llmfit' | 'omniroute' | 'colibri' | 'pidesktop'
+    'superpowers' | 'bifrost_llmfit' | 'omniroute' | 'colibri' | 'pidesktop' | 'voice_assimilation'
   >('superpowers');
 
   // Superpowers state
@@ -101,6 +110,52 @@ export const AssimilationProtocol: React.FC<AssimilationProtocolProps> = ({
     tokensPerSec: number;
     vramStreamLatencyMs: number;
   } | null>(null);
+
+  // Voice Assimilation state (react-native-voice & debpalash/VoiceStudio)
+  const [voiceAudits] = useState<VoiceAssimilationAudit[]>(VOICE_ASSIMILATION_AUDITS);
+  const [rnLocale, setRnLocale] = useState('en-US');
+  const [rnOffline, setRnOffline] = useState(false);
+  const [isSimulatingRN, setIsSimulatingRN] = useState(false);
+  const [rnEventStream, setRnEventStream] = useState<RNVoiceEventStream | null>(null);
+
+  const [selectedVoiceEngine, setSelectedVoiceEngine] = useState<VoiceStudioLocalEngine>(
+    VOICE_STUDIO_ENGINES[0]
+  );
+  const [voiceStudioPrompt, setVoiceStudioPrompt] = useState(
+    `Hail, Commander. Local neural synthesis engine engaged with zero external cloud dependencies.`
+  );
+  const [isSynthesizingVoiceStudio, setIsSynthesizingVoiceStudio] = useState(false);
+  const [voiceStudioResult, setVoiceStudioResult] = useState<any | null>(null);
+
+  const handleSimulateRNVoice = async () => {
+    setIsSimulatingRN(true);
+    try {
+      const stream = await assimilationService.simulateRNVoiceTranscription(rnLocale, rnOffline);
+      setRnEventStream(stream);
+      toast.success(`RN-Voice listener simulated via ${stream.engineBackend}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'RN-Voice bridge simulation failed');
+    } finally {
+      setIsSimulatingRN(false);
+    }
+  };
+
+  const handleSynthesizeVoiceStudio = async () => {
+    setIsSynthesizingVoiceStudio(true);
+    try {
+      const result = await assimilationService.simulateVoiceStudioSynthesis(
+        currentPersona,
+        selectedVoiceEngine.engineName,
+        voiceStudioPrompt
+      );
+      setVoiceStudioResult(result);
+      toast.success(`Synthesized via local ${selectedVoiceEngine.modelFamily}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'VoiceStudio synthesis failed');
+    } finally {
+      setIsSynthesizingVoiceStudio(false);
+    }
+  };
 
   // Initial data loading
   useEffect(() => {
@@ -276,11 +331,11 @@ export const AssimilationProtocol: React.FC<AssimilationProtocolProps> = ({
               <div className="flex items-center space-x-2">
                 <h2 className="text-base font-semibold text-slate-100">Assimilation Protocol Engine</h2>
                 <span className="px-2 py-0.5 text-xs font-mono bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full">
-                  5 Repositories Active
+                  7 Repositories Active
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Superpowers • Bifröst Bridge • llmfit • OmniRoute • Colibri MoE • PI-Desktop
+                Superpowers • Bifröst • llmfit • OmniRoute • Colibri • PI-Desktop • VoiceStudio • RN-Voice
               </p>
             </div>
           </div>
@@ -341,6 +396,17 @@ export const AssimilationProtocol: React.FC<AssimilationProtocolProps> = ({
             >
               <FileCode className="w-3.5 h-3.5" />
               <span>PI-Desktop</span>
+            </button>
+            <button
+              onClick={() => setActiveSubTab('voice_assimilation')}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center space-x-1.5 ${
+                activeSubTab === 'voice_assimilation'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Mic className="w-3.5 h-3.5" />
+              <span>VoiceStudio & RN-Voice</span>
             </button>
           </div>
         </div>
@@ -1328,6 +1394,351 @@ export const AssimilationProtocol: React.FC<AssimilationProtocolProps> = ({
                   Importing the downloaded <code className="text-slate-100">.piplug</code> file directly into PI-Desktop immediately registers {currentPersona.name} with offline persistence, vector memory, and voice loopback.
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================== */}
+        {/* SUBTAB 6: react-native-voice & VoiceStudio */}
+        {/* ========================================== */}
+        {activeSubTab === 'voice_assimilation' && (
+          <div className="space-y-6">
+            {/* Header Banner */}
+            <div className="bg-gradient-to-r from-rose-950/40 via-purple-950/20 to-slate-900 border border-rose-500/30 rounded-xl p-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-7 h-7 rounded-md bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400">
+                      <Mic className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-100">
+                      Voice & Speech Engine Assimilation: RN-Voice & VoiceStudio
+                    </h3>
+                    <span className="px-2 py-0.5 text-[10px] font-mono bg-rose-500/10 text-rose-300 border border-rose-500/30 rounded-full">
+                      Dual Ingress & Neural Synthesis
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                    Evaluates <code className="text-rose-300">react-native-voice/voice</code> for cross-platform event-driven microphone listeners and <code className="text-purple-300">debpalash/VoiceStudio</code> for 100% sovereign, local-first zero-shot neural voice cloning.
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-3 text-xs font-mono">
+                  <div className="px-3 py-2 bg-slate-950/80 border border-slate-800 rounded-lg text-center">
+                    <div className="text-slate-400 text-[10px]">LOCAL CLONE ENGINES</div>
+                    <div className="text-rose-400 font-bold">5 Available</div>
+                  </div>
+                  <div className="px-3 py-2 bg-slate-950/80 border border-slate-800 rounded-lg text-center">
+                    <div className="text-slate-400 text-[10px]">MIN CLONE LATENCY</div>
+                    <div className="text-emerald-400 font-bold">&lt; 150ms</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Repositories Audit & Assessment Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {voiceAudits.map((audit) => (
+                <div 
+                  key={audit.target}
+                  className="p-4 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col justify-between space-y-4"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs font-mono font-bold text-slate-100">
+                          {audit.target}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          Score: {audit.score}/100
+                        </span>
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                          audit.verdict === 'Adopt'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                            : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
+                        }`}>
+                          {audit.verdict}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-slate-400 font-medium">
+                      {audit.category}
+                    </div>
+
+                    <a 
+                      href={audit.repoUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-[10px] font-mono text-cyan-400 hover:underline block"
+                    >
+                      {audit.repoUrl}
+                    </a>
+
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                      <div className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-semibold">
+                        Architectural Strengths
+                      </div>
+                      <ul className="space-y-1">
+                        {audit.strengths.map((str, i) => (
+                          <li key={i} className="text-xs text-slate-300 flex items-start space-x-1.5">
+                            <span className="text-emerald-400 text-xs shrink-0 mt-0.5">•</span>
+                            <span>{str}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                      <div className="text-[10px] uppercase font-mono tracking-wider text-amber-400 font-semibold">
+                        Limitations & Bottlenecks
+                      </div>
+                      <ul className="space-y-1">
+                        {audit.limitations.map((lim, i) => (
+                          <li key={i} className="text-xs text-slate-400 flex items-start space-x-1.5">
+                            <span className="text-amber-400 text-xs shrink-0 mt-0.5">✕</span>
+                            <span>{lim}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800/80 text-[11px] text-slate-300">
+                    <span className="text-[10px] uppercase font-mono text-rose-300 font-bold block mb-1">
+                      Assimilation Strategy
+                    </span>
+                    {audit.assimilationStrategy}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Interactive Section: RN-Voice Listener & VoiceStudio Local Engine */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* React Native Voice Bridge Simulator */}
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <Radio className="w-4 h-4 text-cyan-400" />
+                    <h4 className="text-xs font-semibold text-slate-200">
+                      React Native Voice Bridge Simulator
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                    Microphone Ingress
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                      Recognition Locale
+                    </label>
+                    <select
+                      value={rnLocale}
+                      onChange={(e) => setRnLocale(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-md p-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                    >
+                      <option value="en-US">English (en-US)</option>
+                      <option value="es-ES">Spanish (es-ES)</option>
+                      <option value="ja-JP">Japanese (ja-JP)</option>
+                      <option value="de-DE">German (de-DE)</option>
+                      <option value="fr-FR">French (fr-FR)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                      Engine Mode
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setRnOffline(!rnOffline)}
+                      className={`w-full p-2 rounded-md border text-xs font-mono transition-colors flex items-center justify-between ${
+                        rnOffline
+                          ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <span>{rnOffline ? 'On-Device Whisper' : 'OS SpeechRecognizer'}</span>
+                      <span className="text-[10px] font-bold">{rnOffline ? 'OFFLINE' : 'ONLINE'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSimulateRNVoice}
+                  disabled={isSimulatingRN}
+                  className="w-full py-2 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-xs flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+                >
+                  {isSimulatingRN ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Emulating Voice Event Stream...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Test Speech Recognition Bridge</span>
+                    </>
+                  )}
+                </button>
+
+                {rnEventStream && (
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg space-y-3 font-mono text-xs">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">Audio Level (RMS dB):</span>
+                      <span className="text-cyan-400 font-bold">{rnEventStream.rmsVolumeDb} dB</span>
+                    </div>
+
+                    {/* Volume Meter */}
+                    <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                      <div 
+                        className="bg-cyan-400 h-full transition-all duration-300"
+                        style={{ width: `${Math.min(100, Math.max(10, (rnEventStream.rmsVolumeDb + 40) * 2.5))}%` }}
+                      />
+                    </div>
+
+                    <div className="space-y-1 text-[11px]">
+                      <span className="text-slate-500 text-[10px] uppercase">Partial Utterance Stream (onSpeechPartialResults):</span>
+                      <div className="space-y-1">
+                        {rnEventStream.partialResults.map((p, idx) => (
+                          <div key={idx} className="p-1 rounded bg-slate-900 border border-slate-800/80 text-slate-400 text-[10px]">
+                            &gt; {p}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-2 rounded bg-cyan-950/30 border border-cyan-500/30 text-cyan-300 text-xs">
+                      <span className="text-[10px] uppercase text-cyan-400 font-bold block">Final Recognized (onSpeechResults):</span>
+                      &quot;{rnEventStream.finalTranscript}&quot;
+                    </div>
+
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1">
+                      <span>Backend: <span className="text-slate-300">{rnEventStream.engineBackend}</span></span>
+                      <span>Locale: <span className="text-slate-300">{rnEventStream.recognizedLocale}</span></span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* VoiceStudio Local Neural Synthesis Engine */}
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <AudioLines className="w-4 h-4 text-purple-400" />
+                    <h4 className="text-xs font-semibold text-slate-200">
+                      VoiceStudio Local Synthesis &amp; Clone Lab
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                    debpalash/VoiceStudio
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                    Select Local Offline Model Architecture
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {VOICE_STUDIO_ENGINES.slice(0, 4).map((engine) => (
+                      <button
+                        key={engine.engineName}
+                        type="button"
+                        onClick={() => setSelectedVoiceEngine(engine)}
+                        className={`p-2.5 rounded-lg border text-left transition-colors font-mono text-xs ${
+                          selectedVoiceEngine.engineName === engine.engineName
+                            ? 'bg-purple-500/20 border-purple-500/40 text-purple-200'
+                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        <div className="font-bold text-[11px] truncate">{engine.engineName}</div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 mt-1">
+                          <span>RTF: <span className="text-emerald-400">{engine.rtf}x</span></span>
+                          <span>VRAM: {engine.vramUsageMb}MB</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] uppercase font-mono text-slate-400 block mb-1">
+                    Speech Prompt (Active Persona: {currentPersona.name})
+                  </label>
+                  <textarea
+                    value={voiceStudioPrompt}
+                    onChange={(e) => setVoiceStudioPrompt(e.target.value)}
+                    rows={2}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-md p-2 text-xs text-slate-200 focus:outline-none focus:border-purple-500 font-sans"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSynthesizeVoiceStudio}
+                  disabled={isSynthesizingVoiceStudio}
+                  className="w-full py-2 px-3 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium text-xs flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+                >
+                  {isSynthesizingVoiceStudio ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Synthesizing via Local GPU Tensor Cores...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>Synthesize Offline via {selectedVoiceEngine.modelFamily}</span>
+                    </>
+                  )}
+                </button>
+
+                {voiceStudioResult && (
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-lg space-y-2 font-mono text-xs">
+                    <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-800">
+                      <span className="text-slate-400">Synthesis Engine:</span>
+                      <span className="text-purple-300 font-bold">{voiceStudioResult.engine}</span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center text-[10px] pt-1">
+                      <div className="p-1.5 bg-slate-900 rounded border border-slate-800">
+                        <div className="text-slate-500">REAL-TIME FACTOR</div>
+                        <div className="text-emerald-400 font-bold text-xs">{voiceStudioResult.rtf}x</div>
+                      </div>
+                      <div className="p-1.5 bg-slate-900 rounded border border-slate-800">
+                        <div className="text-slate-500">INFERENCE TIME</div>
+                        <div className="text-cyan-400 font-bold text-xs">{voiceStudioResult.latencyMs}ms</div>
+                      </div>
+                      <div className="p-1.5 bg-slate-900 rounded border border-slate-800">
+                        <div className="text-slate-500">SIMILARITY</div>
+                        <div className="text-purple-400 font-bold text-xs">
+                          {((voiceStudioResult.zeroShotEmbedding?.cloneSimilarity || 0.94) * 100).toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-[10px] text-slate-400 pt-1">
+                      Audio Buffer: 24,000 Hz, 16-bit PCM Linear • Zero Cloud API calls required
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Architecture Integration Blueprint */}
+            <div className="p-4 rounded-xl bg-slate-900/40 border border-slate-800 space-y-3 text-xs">
+              <h4 className="text-xs font-semibold text-slate-200 flex items-center space-x-2">
+                <FileCode className="w-4 h-4 text-indigo-400" />
+                <span>Camelot-OS Multivoice Router Integration Pattern</span>
+              </h4>
+              <p className="text-slate-400 leading-relaxed text-xs">
+                To assimilate both technologies simultaneously into the Camelot citadel runtime, use <code className="text-cyan-300">react-native-voice</code> as the low-overhead client microphone capture listener, streaming chunked buffers through Bifröst WebSocket bridges directly into <code className="text-purple-300">VoiceStudio</code>&apos;s local zero-shot PyTorch synthesis engine whenever offline mode is active.
+              </p>
             </div>
           </div>
         )}

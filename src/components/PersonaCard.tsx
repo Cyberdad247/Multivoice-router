@@ -1,7 +1,7 @@
 import { Persona } from '../types/persona';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
-import { Brain, Mic2, Sparkles, Edit2 } from 'lucide-react';
+import { Brain, Mic2, Sparkles, Edit2, Radio } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
 import { getVoiceMetadata } from '../constants/voices';
@@ -88,6 +88,16 @@ export function PersonaCard({ persona, isSelected, onSelect, onEdit, disabled }:
           <Badge variant="outline" className={cn("text-[9px] px-1.5 py-0", getVoiceMetadata(persona.voice).color)}>
             {getVoiceMetadata(persona.voice).tag}
           </Badge>
+        </div>
+
+        <div className="mt-2 flex items-center justify-between gap-1.5 text-[10px] font-mono bg-muted/40 px-2 py-1 rounded border border-border/50">
+          <span className="text-muted-foreground flex items-center gap-1">
+            <Radio className="w-3 h-3 text-primary/70" />
+            <span>Voice Signature:</span>
+          </span>
+          <span className="text-primary font-semibold truncate">
+            {persona.synthesisEngine || 'Gemini-Voice-Live-2.0'}
+          </span>
         </div>
 
         <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between gap-2">
