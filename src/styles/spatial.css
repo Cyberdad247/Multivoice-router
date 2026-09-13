@@ -61,6 +61,18 @@
   transition: transform .22s ease-out;
 }
 
+/* 3D Card Flipper for technical codex view */
+.card-flipper {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.card-flipper.is-flipped {
+  transform: rotateY(180deg);
+}
+
 .card-back, .card-face {
   position: absolute;
   inset: 0;
@@ -72,6 +84,22 @@
 .card-back {
   transform: translateZ(-13px);
   box-shadow: 10px 24px 30px #000b;
+}
+
+.card-back-codex {
+  position: absolute;
+  inset: 0;
+  border-radius: 65px 65px 7px 7px;
+  background: radial-gradient(circle at 50% 20%, #151f2e, #090e16 85%);
+  border: 1px solid #e7c389;
+  transform: rotateY(180deg) translateZ(1px);
+  backface-visibility: hidden;
+  box-shadow: inset 0 0 0 5px #0d1219, inset 0 0 0 6px #9e845744, 0 0 25px rgba(217, 184, 119, 0.2);
+  overflow: hidden;
+  padding: 18px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .card-edge {
@@ -249,6 +277,163 @@
   inset: 0;
   background: linear-gradient(90deg, #090d1480, transparent 15% 85%, #090d1480);
   pointer-events: none;
+}
+
+/* 2D-3D Kinetic Floating Levitation for Selected Armor Card */
+.armor-card.selected:not(.motion-reduced) .card-tilt {
+  animation: cardFloatingLevitate 4.5s ease-in-out infinite;
+}
+
+@keyframes cardFloatingLevitate {
+  0%, 100% {
+    transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(0px);
+  }
+  50% {
+    transform: rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(-7px);
+  }
+}
+
+/* Acoustic Pulse Emitters radiating when Speaking */
+.acoustic-emitter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 220px;
+  height: 320px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.acoustic-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 1.5px solid rgba(217, 184, 119, 0.4);
+  box-shadow: 0 0 15px rgba(217, 184, 119, 0.3);
+  opacity: 0;
+}
+
+.is-speaking .acoustic-ring:nth-child(1) {
+  animation: acousticPulseWave 2.4s cubic-bezier(0.1, 0.7, 0.1, 1) infinite;
+}
+
+.is-speaking .acoustic-ring:nth-child(2) {
+  animation: acousticPulseWave 2.4s cubic-bezier(0.1, 0.7, 0.1, 1) 0.8s infinite;
+}
+
+.is-speaking .acoustic-ring:nth-child(3) {
+  animation: acousticPulseWave 2.4s cubic-bezier(0.1, 0.7, 0.1, 1) 1.6s infinite;
+}
+
+@keyframes acousticPulseWave {
+  0% {
+    width: 140px;
+    height: 140px;
+    opacity: 0.85;
+    border-color: #efdaab;
+    transform: scale(0.7);
+  }
+  50% {
+    opacity: 0.5;
+    border-color: #d0b27a;
+  }
+  100% {
+    width: 440px;
+    height: 440px;
+    opacity: 0;
+    border-color: #88c5d7;
+    transform: scale(1.4);
+  }
+}
+
+/* Quick Knight Dock & Thumbnails */
+.carousel-dock-wrapper {
+  padding: 10px 16px;
+  display: flex;
+  justify-content: center;
+  position: relative;
+  z-index: 10;
+}
+
+.carousel-dock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(11, 16, 25, 0.85);
+  border: 1px solid rgba(208, 178, 122, 0.25);
+  border-radius: 9999px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  overflow-x: auto;
+  max-width: 95vw;
+}
+
+.dock-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #939ba9;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  cursor: pointer;
+}
+
+.dock-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #efece4;
+  border-color: rgba(208, 178, 122, 0.3);
+  transform: translateY(-2px);
+}
+
+.dock-item.active {
+  background: linear-gradient(135deg, rgba(208, 178, 122, 0.25), rgba(208, 178, 122, 0.08));
+  color: #f3ddaa;
+  border-color: #d0b27a;
+  box-shadow: 0 0 14px rgba(208, 178, 122, 0.25);
+  font-weight: 600;
+}
+
+.dock-numeral {
+  font-family: Georgia, serif;
+  font-size: 10px;
+  color: #d0b27a;
+}
+
+/* 3D Flip Action Button on Card */
+.card-flip-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(13, 18, 28, 0.8);
+  border: 1px solid rgba(217, 184, 119, 0.4);
+  color: #d0b27a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+}
+
+.card-flip-btn:hover {
+  background: rgba(217, 184, 119, 0.2);
+  border-color: #efdaab;
+  color: #fff;
+  transform: scale(1.12) rotate(15deg);
 }
 
 .motion-reduced .armor-card { transition: opacity .1s, transform .1s; will-change: auto; }

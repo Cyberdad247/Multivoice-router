@@ -23,7 +23,12 @@ import {
   Cpu,
   Bot,
   ChevronDown,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Layers,
+  LayoutGrid,
+  Info,
+  RotateCcw,
+  Sparkle
 } from 'lucide-react';
 import { OrbitalFloorCanvas } from './OrbitalFloorCanvas';
 import { AutonomousRouterBar } from './AutonomousRouterBar';
@@ -131,6 +136,11 @@ export function CamelotCarousel({
     shineY: 50
   });
 
+  // UI/UX View Mode & 3D Interactive States
+  const [viewMode, setViewMode] = useState<'carousel' | 'matrix'>('carousel');
+  const [isCardFlipped, setIsCardFlipped] = useState<boolean>(false);
+  const wheelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const carouselRef = useRef<HTMLDivElement>(null);
   const pointerRef = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef<boolean>(false);
@@ -225,6 +235,7 @@ export function CamelotCarousel({
   const selectKnight = useCallback((nextIndex: number, announce = true) => {
     const updated = (nextIndex + totalCount) % totalCount;
     if (updated === index) return;
+    setIsCardFlipped(false);
     stopPlayback(false);
     const targetPersona = personas[updated];
     onSelectPersona(targetPersona);
@@ -391,7 +402,7 @@ export function CamelotCarousel({
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
-      if (e.key >= '1' && e.key <= '6') {
+      if (e.key >= '1' && e.key <= '9') {
         const targetIdx = parseInt(e.key, 10) - 1;
         if (targetIdx < totalCount) {
           e.preventDefault();
@@ -400,6 +411,14 @@ export function CamelotCarousel({
       } else if (e.code === 'Space') {
         e.preventDefault();
         handleAwaken();
+      } else if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        setIsCardFlipped(prev => !prev);
+        if (hapticAudio) playArmorClick(1.2);
+      } else if (e.key === 'v' || e.key === 'V') {
+        e.preventDefault();
+        setViewMode(prev => (prev === 'carousel' ? 'matrix' : 'carousel'));
+        if (hapticAudio) playArmorClick(1.1);
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
         onConnect?.();
@@ -488,6 +507,19 @@ export function CamelotCarousel({
     setCardTilt({ x: 0, y: 0, shineX: 50, shineY: 50 });
   };
 
+  // Horizontal mouse wheel navigation
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (viewMode !== 'carousel') return;
+    if (Math.abs(e.deltaX) > 18 || Math.abs(e.deltaY) > 28) {
+      if (wheelTimeoutRef.current) return;
+      const dir = (e.deltaX > 0 || e.deltaY > 0) ? 1 : -1;
+      selectKnight(index + dir);
+      wheelTimeoutRef.current = setTimeout(() => {
+        wheelTimeoutRef.current = null;
+      }, 220);
+    }
+  };
+
   // Generate 52 waveform procedural heights
   const waveformBars = useMemo(() => {
     return Array.from({ length: 52 }, (_, i) => {
@@ -504,13 +536,13 @@ export function CamelotCarousel({
     let diff = (i - index + totalCount) % totalCount;
     if (diff > totalCount / 2) diff -= totalCount;
     const distance = Math.abs(diff);
-    const step = 145;
-    const x = diff === 0 ? 0 : Math.sign(diff) * (step + (distance - 1) * 108);
-    const y = distance === 0 ? -6 : distance === 1 ? 21 : 35;
-    const z = distance === 0 ? 95 : -95 - distance * 80;
-    const angle = diff === 0 ? 0 : Math.sign(diff) * -27;
-    const opacity = distance >= 3 ? 0 : distance === 2 ? 0.6 : distance === 1 ? 0.91 : 1;
-    const zIndex = 10 - distance;
+    const step = 148;
+    const x = diff === 0 ? 0 : Math.sign(diff) * (step + (distance - 1) * 110);
+    const y = distance === 0 ? -6 : distance === 1 ? 20 : 34;
+    const z = distance === 0 ? 98 : -95 - distance * 78;
+    const angle = diff === 0 ? 0 : Math.sign(diff) * -26;
+    const opacity = distance >= 4 ? 0 : distance === 3 ? 0.35 : distance === 2 ? 0.68 : distance === 1 ? 0.92 : 1;
+    const zIndex = 20 - distance;
     const pointerEvents = distance >= 3 ? 'none' : 'auto';
 
     return {
@@ -796,7 +828,7 @@ export function CamelotCarousel({
             <p className="intro-copy">Choose your armor. Find your resonance. Awaken your Knight.</p>
           </div>
           <div className="intro-mark">
-            <span>VI</span>
+            <span>{numerals[totalCount - 1] || `${totalCount}`}</span>
             <p>
               VOICES.
               <br />
@@ -814,7 +846,7 @@ export function CamelotCarousel({
               ARMORY <span className="muted">/ VOICE SELECTION</span>
             </span>
             <span className="top-right">
-              {String(index + 1).padStart(2, '0')} <span className="muted">—</span> VI{' '}
+              {String(index + 1).padStart(2, '0')} <span className="muted">—</span> {numerals[totalCount - 1] || `${totalCount}`}{' '}
               <span className="tiny-diamond" />
             </span>
           </div>
@@ -823,95 +855,112 @@ export function CamelotCarousel({
           <div className="experience">
             {/* Left Stage */}
             <div className="stage-wrap">
-              {/* Stage Heading with Motion Toggle */}
-              <div className="stage-heading">
+              {/* Stage Heading with View Mode & Motion Toggles */}
+              <div className="stage-heading flex items-center justify-between gap-2">
                 <span className="eyebrow">CHOOSE YOUR KNIGHT</span>
-                <button
-                  id="motion-toggle"
-                  className="text-button"
-                  aria-pressed={manualReduced}
-                  onClick={() => setManualReduced(!manualReduced)}
-                  title={manualReduced ? 'Enable 3D animation' : 'Reduce 3D animation'}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="m12 3 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 16l9 5 9-5" />
-                  </svg>
-                  <span>{manualReduced ? 'Reduced motion' : 'Full motion'}</span>
-                </button>
+                
+                <div className="flex items-center gap-2">
+                  {/* View Mode Switcher: 3D Stage vs Armory Grid */}
+                  <div className="inline-flex p-0.5 rounded bg-black/60 border border-zinc-800">
+                    <button
+                      type="button"
+                      className={`px-2.5 py-1 rounded text-xs flex items-center gap-1.5 transition-all ${
+                        viewMode === 'carousel'
+                          ? 'bg-amber-500/20 text-amber-300 font-medium border border-amber-500/40 shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                      onClick={() => setViewMode('carousel')}
+                      title="3D Spatial Carousel Stage (Hotkey: V)"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>3D Stage</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={`px-2.5 py-1 rounded text-xs flex items-center gap-1.5 transition-all ${
+                        viewMode === 'matrix'
+                          ? 'bg-cyan-500/20 text-cyan-300 font-medium border border-cyan-500/40 shadow-sm'
+                          : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                      onClick={() => setViewMode('matrix')}
+                      title="Armory Matrix Grid (Hotkey: V)"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Armory Grid</span>
+                    </button>
+                  </div>
+
+                  <button
+                    id="motion-toggle"
+                    className="text-button"
+                    aria-pressed={manualReduced}
+                    onClick={() => setManualReduced(!manualReduced)}
+                    title={manualReduced ? 'Enable 3D animation' : 'Reduce 3D animation'}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m12 3 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 16l9 5 9-5" />
+                    </svg>
+                    <span>{manualReduced ? 'Reduced motion' : 'Full motion'}</span>
+                  </button>
+                </div>
               </div>
 
-              {/* 3D Carousel Rotor */}
-              <div
-                id="carousel"
-                ref={carouselRef}
-                className={`carousel ${isDragging ? 'dragging' : ''}`}
-                tabIndex={0}
-                role="region"
-                aria-roledescription="carousel"
-                aria-label="Knight armor carousel"
-                aria-describedby="carousel-help"
-                onKeyDown={handleKeyDown}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={endDrag}
-                onPointerLeave={handlePointerLeave}
-              >
-                {/* Visual Architecture & Spotlight */}
-                <div className="architecture" aria-hidden="true" />
-                <div className="spotlight" aria-hidden="true" />
+              {/* Dynamic View: Armory Grid Matrix vs 3D Carousel Stage */}
+              {viewMode === 'matrix' ? (
+                <div className="p-4 sm:p-5 overflow-y-auto max-h-[520px]">
+                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-zinc-800/80">
+                    <div>
+                      <h3 className="text-xs font-mono font-bold text-amber-300 tracking-wider flex items-center gap-2">
+                        <span>SOVEREIGN BIO-KINETIC ROSTER</span>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          {totalCount} KNIGHTS
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">Click any knight to equip armor and calibrate voice signature.</p>
+                    </div>
+                  </div>
 
-                {/* Orbital Concentric Floor with Reactive Particles */}
-                <div className="orbital-floor" aria-hidden="true">
-                  <OrbitalFloorCanvas
-                    isSpeaking={isSpeaking}
-                    isConnected={isConnected}
-                    reducedMotion={manualReduced}
-                    activeColor="#dfc486"
-                  />
-                  <div className="floor-ring outer" />
-                  <div className="floor-ring inner" />
-                  <div className="floor-cross" />
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {personas.map((p, pIdx) => {
+                      const isSelected = pIdx === index;
+                      const crop = p.crop || [505, 111, 222, 406];
+                      const [cropX, cropY, cropW, cropH] = crop;
 
-                {/* 3D Rotor of Armor Cards */}
-                <div id="rotor" className="rotor">
-                  {personas.slice(0, 6).map((p, i) => {
-                    const isSelected = i === index;
-                    const crop = p.crop || [505, 111, 222, 406];
-                    const [cropX, cropY, cropW, cropH] = crop;
-
-                    return (
-                      <div
-                        key={p.id}
-                        className={`armor-card ${isSelected ? 'selected' : ''}`}
-                        style={renderCardStyle(i)}
-                        data-index={i}
-                        aria-hidden={!isSelected}
-                        onClick={() => {
-                          if (!suppressClickRef.current) selectKnight(i);
-                        }}
-                      >
+                      return (
                         <div
-                          className="card-tilt"
-                          style={
-                            isSelected && !manualReduced
-                              ? ({
-                                  '--tilt-x': `${cardTilt.x}deg`,
-                                  '--tilt-y': `${cardTilt.y}deg`
-                                } as React.CSSProperties)
-                              : undefined
-                          }
+                          key={p.id}
+                          onClick={() => selectKnight(pIdx)}
+                          className={`group relative rounded-xl border p-3 transition-all duration-300 cursor-pointer overflow-hidden ${
+                            isSelected
+                              ? 'bg-gradient-to-b from-[#1b1610] to-[#0a0f16] border-[#dfc486] shadow-[0_0_20px_rgba(223,196,134,0.25)]'
+                              : 'bg-[#0b0f15]/90 border-zinc-800 hover:border-zinc-600 hover:bg-[#111721] hover:translate-y-[-2px]'
+                          }`}
                         >
-                          <div className="card-back" />
-                          <div className="card-edge left" />
-                          <div className="card-edge right" />
-                          <div className="card-face">
-                            <span className="card-number">{numerals[i] || 'I'}</span>
-                            <div className="armor-art">
+                          {/* Top Row: Roman Numeral, Name, Voice */}
+                          <div className="flex items-start justify-between gap-1 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-serif text-sm font-bold text-[#dfc486]">
+                                {numerals[pIdx] || `${pIdx + 1}`}
+                              </span>
+                              <div>
+                                <h4 className={`text-xs font-semibold ${isSelected ? 'text-[#f3ddaa]' : 'text-zinc-200 group-hover:text-white'}`}>
+                                  {p.name}
+                                </h4>
+                                <div className="text-[9px] text-zinc-400 font-mono truncate max-w-[130px]">{p.role}</div>
+                              </div>
+                            </div>
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-black/60 border border-zinc-800 text-cyan-300">
+                              {p.voice}
+                            </span>
+                          </div>
+
+                          {/* Image preview */}
+                          <div className="relative h-28 w-full rounded-lg overflow-hidden my-2 bg-black/60 border border-zinc-800/80">
+                            {p.crop ? (
                               <img
                                 src="/assets/knight-citadel.png"
                                 alt={p.name}
-                                draggable={false}
+                                className="absolute"
                                 style={{
                                   width: `${(1280 / cropW) * 100}%`,
                                   height: `${(720 / cropH) * 100}%`,
@@ -919,34 +968,270 @@ export function CamelotCarousel({
                                   top: `${(-cropY / cropH) * 100}%`
                                 }}
                               />
+                            ) : (
+                              <img
+                                src={p.backdropUrl || '/assets/knight-citadel.png'}
+                                alt={p.name}
+                                className="w-full h-full object-cover"
+                              />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
+                            <div className="absolute bottom-1.5 left-2 right-2 flex items-center justify-between text-[9px] font-mono text-zinc-300">
+                              <span className="truncate text-amber-200/90">{p.synthesisEngine ? p.synthesisEngine.split(' ')[0] : 'Gemini-Live'}</span>
+                              {isSelected && (
+                                <span className="text-amber-400 font-bold flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /> EQUIPPED
+                                </span>
+                              )}
                             </div>
                           </div>
+
+                          {/* Quote snippet */}
+                          <p className="text-[10px] text-zinc-400 line-clamp-2 italic mb-2">
+                            "{p.signatureQuote || p.description}"
+                          </p>
+
+                          {/* Bottom Action row */}
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-zinc-800/60">
+                            <span className="text-[9px] font-mono text-zinc-500">
+                              SLOT {p.armorSlot ?? pIdx}
+                            </span>
+                            <button
+                              type="button"
+                              className={`text-[10px] px-2 py-1 rounded transition-colors font-mono flex items-center gap-1 ${
+                                isSelected && isSpeaking
+                                  ? 'bg-amber-500 text-black font-bold'
+                                  : 'bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!isSelected) {
+                                  selectKnight(pIdx);
+                                }
+                                setTimeout(() => handleAwaken(), 60);
+                              }}
+                            >
+                              <Volume2 className="w-3 h-3" />
+                              <span>{isSelected && isSpeaking ? 'Stop' : 'Audition'}</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* 3D Carousel Rotor */
+                <div
+                  id="carousel"
+                  ref={carouselRef}
+                  className={`carousel ${isDragging ? 'dragging' : ''}`}
+                  tabIndex={0}
+                  role="region"
+                  aria-roledescription="carousel"
+                  aria-label="Knight armor carousel"
+                  aria-describedby="carousel-help"
+                  onKeyDown={handleKeyDown}
+                  onWheel={handleWheel}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={endDrag}
+                  onPointerLeave={handlePointerLeave}
+                >
+                  {/* Visual Architecture & Spotlight */}
+                  <div className="architecture" aria-hidden="true" />
+                  <div className="spotlight" aria-hidden="true" />
+
+                  {/* Orbital Concentric Floor with Reactive Particles */}
+                  <div className="orbital-floor" aria-hidden="true">
+                    <OrbitalFloorCanvas
+                      isSpeaking={isSpeaking}
+                      isConnected={isConnected}
+                      reducedMotion={manualReduced}
+                      activeColor="#dfc486"
+                    />
+                    <div className="floor-ring outer" />
+                    <div className="floor-ring inner" />
+                    <div className="floor-cross" />
+                  </div>
+
+                  {/* 3D Rotor of Armor Cards */}
+                  <div id="rotor" className="rotor">
+                    {personas.map((p, i) => {
+                      const isSelected = i === index;
+                      const crop = p.crop || [505, 111, 222, 406];
+                      const [cropX, cropY, cropW, cropH] = crop;
+
+                      return (
+                        <div
+                          key={p.id}
+                          className={`armor-card ${isSelected ? 'selected' : ''}`}
+                          style={renderCardStyle(i)}
+                          data-index={i}
+                          aria-hidden={!isSelected}
+                          onClick={() => {
+                            if (!suppressClickRef.current) selectKnight(i);
+                          }}
+                        >
+                          {/* Acoustic Pulse Emitters when active Knight is speaking */}
+                          {isSelected && (
+                            <div className="acoustic-emitter" aria-hidden="true">
+                              <div className="acoustic-ring" />
+                              <div className="acoustic-ring" />
+                              <div className="acoustic-ring" />
+                            </div>
+                          )}
+
                           <div
-                            className="card-shine"
+                            className="card-tilt"
                             style={
                               isSelected && !manualReduced
                                 ? ({
-                                    '--shine-x': `${cardTilt.shineX}%`,
-                                    '--shine-y': `${cardTilt.shineY}%`
+                                    '--tilt-x': `${cardTilt.x}deg`,
+                                    '--tilt-y': `${cardTilt.y}deg`
                                   } as React.CSSProperties)
                                 : undefined
                             }
-                          />
-                          <div className="card-label">
-                            {p.name}
-                            <small>{p.voice.toUpperCase()}</small>
+                          >
+                            <div className={`card-flipper ${isSelected && isCardFlipped ? 'is-flipped' : ''}`}>
+                              <div className="card-back" />
+                              <div className="card-edge left" />
+                              <div className="card-edge right" />
+
+                              {/* Front Card Face */}
+                              <div className="card-face">
+                                <span className="card-number">{numerals[i] || `${i + 1}`}</span>
+
+                                {/* 3D Flip Codex Button */}
+                                {isSelected && (
+                                  <button
+                                    type="button"
+                                    className="card-flip-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setIsCardFlipped(!isCardFlipped);
+                                      if (hapticAudio) playArmorClick(1.25);
+                                    }}
+                                    title="Flip card for technical specifications & codex (Hotkey: F)"
+                                    aria-label="Flip card for technical codex"
+                                  >
+                                    <Info className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+
+                                <div className="armor-art">
+                                  {p.crop ? (
+                                    <img
+                                      src="/assets/knight-citadel.png"
+                                      alt={p.name}
+                                      draggable={false}
+                                      style={{
+                                        width: `${(1280 / cropW) * 100}%`,
+                                        height: `${(720 / cropH) * 100}%`,
+                                        left: `${(-cropX / cropW) * 100}%`,
+                                        top: `${(-cropY / cropH) * 100}%`
+                                      }}
+                                    />
+                                  ) : (
+                                    <img
+                                      src={p.backdropUrl || '/assets/knight-citadel.png'}
+                                      alt={p.name}
+                                      draggable={false}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  )}
+                                </div>
+
+                                <div
+                                  className="card-shine"
+                                  style={
+                                    isSelected && !manualReduced
+                                      ? ({
+                                          '--shine-x': `${cardTilt.shineX}%`,
+                                          '--shine-y': `${cardTilt.shineY}%`
+                                        } as React.CSSProperties)
+                                      : undefined
+                                  }
+                                />
+                                <div className="card-label">
+                                  {p.name}
+                                  <small>{p.voice.toUpperCase()} &bull; {p.synthesisEngine ? p.synthesisEngine.split(' ')[0] : 'GEMINI'}</small>
+                                </div>
+                                <div className="selected-marker" />
+                              </div>
+
+                              {/* Back Card Face: Technical Codex */}
+                              <div className="card-back-codex">
+                                <div className="flex items-center justify-between border-b border-[#dfc486]/30 pb-2">
+                                  <span className="text-[10px] font-mono text-[#dfc486] font-bold tracking-wider">
+                                    KNIGHT CODEX &bull; {numerals[i] || `${i + 1}`}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="text-[10px] font-mono text-zinc-400 hover:text-white px-1.5 py-0.5 rounded bg-zinc-800/80 border border-zinc-700"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setIsCardFlipped(false);
+                                    }}
+                                  >
+                                    ✕ Close
+                                  </button>
+                                </div>
+
+                                <div className="py-2 space-y-2 text-left">
+                                  <div>
+                                    <div className="text-xs font-serif font-bold text-[#f3ddaa]">{p.name}</div>
+                                    <div className="text-[9px] text-[#88c5d7] font-mono">{p.role}</div>
+                                  </div>
+
+                                  <div className="p-1.5 rounded bg-black/60 border border-zinc-800 text-[9px] font-mono space-y-1">
+                                    <div className="text-zinc-400 flex justify-between">
+                                      <span>Voice Engine:</span>
+                                      <span className="text-[#dfc486] font-bold truncate max-w-[105px]">
+                                        {p.synthesisEngine || 'Gemini-Live-2.0'}
+                                      </span>
+                                    </div>
+                                    <div className="text-zinc-400 flex justify-between">
+                                      <span>Armor Slot:</span>
+                                      <span className="text-cyan-300">Slot {p.armorSlot ?? i}</span>
+                                    </div>
+                                    <div className="text-zinc-400 flex justify-between">
+                                      <span>Voice Timbre:</span>
+                                      <span className="text-white">{p.voice}</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="text-[9px] text-zinc-300 line-clamp-3 italic">
+                                    "{p.signatureQuote || p.description}"
+                                  </div>
+                                </div>
+
+                                <div className="pt-2 border-t border-zinc-800 flex items-center justify-between">
+                                  <span className="text-[8px] text-zinc-500 font-mono">B.L.A.S.T. VERIFIED</span>
+                                  <button
+                                    type="button"
+                                    className="text-[10px] text-[#dfc486] hover:text-[#f3ddaa] font-mono underline"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setIsCardFlipped(false);
+                                    }}
+                                  >
+                                    Flip Face ↺
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <div className="selected-marker" />
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+
+                  <div className="stage-vignette" aria-hidden="true" />
                 </div>
+              )}
 
-                <div className="stage-vignette" aria-hidden="true" />
-              </div>
-
-              {/* Nav controls */}
+              {/* Nav controls & Position Indicator */}
               <div className="carousel-nav">
                 <button
                   id="prev"
@@ -963,10 +1248,10 @@ export function CamelotCarousel({
                   <span
                     className="position-line"
                     style={{
-                      background: `linear-gradient(90deg, var(--gold) ${((index + 1) / 6) * 100}%, #48526644 ${((index + 1) / 6) * 100}%)`
+                      background: `linear-gradient(90deg, var(--gold) ${((index + 1) / totalCount) * 100}%, #48526644 ${((index + 1) / totalCount) * 100}%)`
                     }}
                   />
-                  <span>06</span>
+                  <span>{String(totalCount).padStart(2, '0')}</span>
                 </div>
                 <button
                   id="next"
@@ -980,8 +1265,30 @@ export function CamelotCarousel({
                 </button>
               </div>
 
+              {/* Interactive Quick-Selector Dock */}
+              <div className="carousel-dock-wrapper" aria-label="Quick knight selector">
+                <div className="carousel-dock">
+                  {personas.map((p, pIdx) => {
+                    const isSelected = pIdx === index;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className={`dock-item ${isSelected ? 'active' : ''}`}
+                        onClick={() => selectKnight(pIdx)}
+                        title={`Select ${p.name} (${p.voice}) - Knight ${pIdx + 1}`}
+                      >
+                        <span className="dock-numeral">{numerals[pIdx] || `${pIdx + 1}`}</span>
+                        <span className="truncate max-w-[80px]">{p.name.replace('Sir ', '')}</span>
+                        {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <p id="carousel-help" className="carousel-help">
-                Drag to explore <span>·</span> Use <kbd>←</kbd> <kbd>→</kbd> to navigate
+                Drag or scroll to rotate <span>·</span> <kbd>←</kbd> <kbd>→</kbd> navigate <span>·</span> <kbd>Space</kbd> awaken <span>·</span> <kbd>F</kbd> flip codex <span>·</span> <kbd>V</kbd> view mode
               </p>
             </div>
 
@@ -1012,6 +1319,14 @@ export function CamelotCarousel({
                 {(activeKnight.traits || ['Commanding', 'Resonant', 'Deliberate']).map(trait => (
                   <span key={trait}>{trait}</span>
                 ))}
+              </div>
+
+              {/* Synthesis Engine Signature Badge */}
+              <div className="flex items-center justify-between text-[10px] font-mono px-2.5 py-1.5 my-2 rounded bg-amber-500/10 border border-amber-500/25 text-amber-300 shadow-sm">
+                <span className="text-zinc-400">Synthesis Signature:</span>
+                <span className="font-bold text-[#dfc486] truncate max-w-[160px]">
+                  {activeKnight.synthesisEngine || 'Gemini-Live-2.0-Flash'}
+                </span>
               </div>
 
               {/* Voice Engine Mode Switcher */}
@@ -1072,12 +1387,14 @@ export function CamelotCarousel({
                 </div>
               </div>
 
-              {/* Tuning Controls */}
+              {/* Tuning Controls with Reset Option */}
               <div className="tuning">
                 <div>
-                  <label htmlFor="pitch">
-                    Pitch <output id="pitch-value">{pitch.toFixed(2)}</output>
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="pitch">
+                      Pitch <output id="pitch-value">{pitch.toFixed(2)}</output>
+                    </label>
+                  </div>
                   <input
                     id="pitch"
                     type="range"
@@ -1092,9 +1409,23 @@ export function CamelotCarousel({
                   />
                 </div>
                 <div>
-                  <label htmlFor="rate">
-                    Pace <output id="rate-value">{rate.toFixed(2)}×</output>
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="rate">
+                      Pace <output id="rate-value">{rate.toFixed(2)}×</output>
+                    </label>
+                    <button
+                      type="button"
+                      className="text-[9px] text-[#dfc486] hover:underline"
+                      onClick={() => {
+                        setPitch(0.85);
+                        setRate(0.90);
+                        if (hapticAudio) playArmorClick(1.0);
+                      }}
+                      title="Reset Pitch (0.85) and Pace (0.90) to Sovereign Standard"
+                    >
+                      Reset ↺
+                    </button>
+                  </div>
                   <input
                     id="rate"
                     type="range"
@@ -1107,6 +1438,37 @@ export function CamelotCarousel({
                       setRate(parseFloat(e.target.value));
                     }}
                   />
+                </div>
+              </div>
+
+              {/* Quick Audition Prompt Selector */}
+              <div className="my-2">
+                <div className="text-[9px] font-mono uppercase tracking-wider text-zinc-400 mb-1 flex items-center justify-between">
+                  <span>Quick Audition Prompts</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    className="px-2 py-1 rounded bg-black/60 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-300 hover:text-amber-200 text-left truncate transition-colors"
+                    onClick={() => {
+                      setSampleText(activeKnight.signatureQuote || activeVoiceMeta.sampleQuote);
+                      if (hapticAudio) playArmorClick(1.1);
+                    }}
+                    title="Load Signature Quote"
+                  >
+                    💬 Signature Quote
+                  </button>
+                  <button
+                    type="button"
+                    className="px-2 py-1 rounded bg-black/60 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-zinc-300 hover:text-cyan-200 text-left truncate transition-colors"
+                    onClick={() => {
+                      setSampleText(`Anti-Gravity Forge telemetry initialized. Voice signature ${activeKnight.voice} locked at 48kHz.`);
+                      if (hapticAudio) playArmorClick(1.1);
+                    }}
+                    title="Load Telemetry Briefing"
+                  >
+                    ⚡ Telemetry Brief
+                  </button>
                 </div>
               </div>
 
