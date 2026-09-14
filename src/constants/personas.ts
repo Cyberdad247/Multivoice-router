@@ -26,6 +26,26 @@ export const PERSONAS: Persona[] = [
       'B.L.A.S.T. Protocol mandates Z3 verification prior to code commitment.',
       'Parallel Knight instances run in CoW MicroVMs with delta <= 0.12 MiB.'
     ],
+    sources: [
+      {
+        id: 'source-merlin-blast-spec',
+        name: 'B.L.A.S.T. Kinetic Protocol & DAG Spec',
+        type: 'file',
+        content: 'The B.L.A.S.T. protocol mandates five strict phases: Blueprint, Link, Architect, Stylize, Trigger. All architectural operations run through sovereign AST validation before deployment. Memfd_create shared memory slabs eliminate IPC serialization overhead across the 8GB RAM boundary.'
+      },
+      {
+        id: 'source-merlin-timbre-script',
+        name: 'Merlin Acoustic Phonation & Cadence Script',
+        type: 'file',
+        content: 'I am MERLIN Omega, Sovereign System 2 Orchestrator. Anti-Gravity Forge online and standing by. Speak with commanding resonance, measured baritone gravity, deliberate pauses, and architectural certainty. Never hesitate; speak the truth of the Sovereign Blueprint.'
+      },
+      {
+        id: 'source-merlin-camelot-docs',
+        name: 'Camelot Sovereign Node Architecture',
+        type: 'url',
+        url: 'https://camelot-os.dev/docs/sovereign-kernel'
+      }
+    ],
     synthesisEngine: 'Gemini-Live-2.0-Flash (High Fidelity)',
     bridgeConfig: { enabled: true, ip: '127.0.0.1', port: 9001, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
@@ -53,6 +73,20 @@ export const PERSONAS: Persona[] = [
       'Shared memory zero-copy endpoints eliminate serialization tax.',
       'Tree-sitter AST validation ensures semantic integrity across patches.',
       'Bifrost WebSocket pipelines maintain < 5ms streaming roundtrips.'
+    ],
+    sources: [
+      {
+        id: 'source-codex-wasm-mem',
+        name: 'WASM32-WASI Zero-Copy Inter-Process Communication Spec',
+        type: 'file',
+        content: 'Zero-copy memory slabs utilizing memfd_create with seal F_SEAL_SHRINK. Eliminates JSON serialization overhead across MicroVM boundaries. Latency ceiling strictly capped under 2.4 microseconds.'
+      },
+      {
+        id: 'source-codex-cadence-notes',
+        name: 'Codex Technical Cadence Reference',
+        type: 'file',
+        content: 'Sir Codex phonation profile: Rapid, crisp, unslurred consonants. Analytical inflection with high speech rate. Technical terms spoken with exact dictionary precision.'
+      }
     ],
     synthesisEngine: 'VoiceStudio-Kokoro-82M (0.08 RTF)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
@@ -82,6 +116,14 @@ export const PERSONAS: Persona[] = [
       'Obsidian, Gold, and Cyan formulate the sovereign palette of Camelot-OS.',
       '3D card depth creates tactile spatial cognition for multi-agent rosters.'
     ],
+    sources: [
+      {
+        id: 'source-boris-kinetic-physics',
+        name: 'Kinetic Spring Dynamics & Spatial Guidelines',
+        type: 'file',
+        content: 'Inertia-based motion mapping, dynamic damping ratios 0.72, angular momentum preservation, brutalist spatial margins. Dynamic vocal cadence reflecting energetic curiosity and playful humor.'
+      }
+    ],
     synthesisEngine: 'VoiceStudio-F5-TTS (Flow Match)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
@@ -109,6 +151,20 @@ export const PERSONAS: Persona[] = [
       'No code patch commits without Z3 satisfiability verification.',
       'MicroVM isolation limits attack blast radiuses to 0.12 MiB delta.',
       'Provenance ledger preserves deterministic trace histories of all mutations.'
+    ],
+    sources: [
+      {
+        id: 'source-gideon-z3-contract',
+        name: 'Formal Z3 SMT Invariant Verification Rulebook',
+        type: 'file',
+        content: 'All state transitions must generate a provable SMT-LIB 2.6 assertion model. Unbounded loops or array out-of-bounds trigger immediate sandbox termination.'
+      },
+      {
+        id: 'source-gideon-audit-log',
+        name: 'Provenance Ledger Cryptographic Chain',
+        type: 'url',
+        url: 'https://camelot-os.dev/audit/provenance-ledger'
+      }
     ],
     synthesisEngine: 'VoiceStudio-StyleTTS2 (Expressive)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
@@ -138,6 +194,14 @@ export const PERSONAS: Persona[] = [
       'Stoicism offers profound lessons for modern mental health.',
       'The fall of the Western Roman Empire was a complex process, not a single event.'
     ],
+    sources: [
+      {
+        id: 'source-elara-alexandria-scroll',
+        name: 'The Alexandria Historiographical Anthology',
+        type: 'file',
+        content: 'Historical annals of the Mediterranean basin, classical stoic reflections of Marcus Aurelius, and Silk Road economic exchanges. Measured, poetic, and serene cadence with slight formal pauses.'
+      }
+    ],
     synthesisEngine: 'VoiceStudio-XTTS-v2 (Multilingual)',
     bridgeConfig: { enabled: false, ip: '', port: 80, protocol: 'http' },
     rustDeskConfig: { enabled: false, id: '', password: '', server: '' }
@@ -165,6 +229,20 @@ export const PERSONAS: Persona[] = [
       'Privacy is a myth in the modern stack unless you build your own tools.',
       'The 2024 global outage was just a precursor to what happens when centralized systems fail.',
       'Code is the only law that matters in the sprawl.'
+    ],
+    sources: [
+      {
+        id: 'source-jax-sprawl-manifesto',
+        name: 'Dark Sprawl Cybernetic Field Manual',
+        type: 'file',
+        content: 'Decentralized mesh networks, zero-trust cryptographic tunneling, RustDesk headless agent relays, Tailscale wireguard overlays. Fast-clipped, sharp consonants, cynical inflection.'
+      },
+      {
+        id: 'source-jax-tailscale-net',
+        name: 'Tailscale Sprawl Network Overlay',
+        type: 'url',
+        url: 'https://tailscale.com/kb/mesh-networking'
+      }
     ],
     synthesisEngine: 'VoiceStudio-Piper-Neural (Offline Edge)',
     bridgeConfig: { 

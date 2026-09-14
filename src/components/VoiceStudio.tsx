@@ -32,8 +32,17 @@ import {
   Shield,
   Clock,
   HardDrive,
-  X
+  X,
+  Tag,
+  FileText,
+  PlusCircle
 } from 'lucide-react';
+import { BulkTaggingStudio } from './BulkTaggingStudio';
+import { RadialQualityScore } from './RadialQualityScore';
+import { CloningQualityCard } from './CloningQualityCard';
+import { PersonaQualityRoster } from './PersonaQualityRoster';
+import { VoiceSourceUploader } from './VoiceSourceUploader';
+import { calculateCloningQuality } from '../lib/cloning-quality';
 
 interface VoiceStudioProps {
   isOpen?: boolean;
@@ -42,6 +51,7 @@ interface VoiceStudioProps {
   selectedPersona: Persona;
   onSelectPersona?: (persona: Persona) => void;
   onUpdatePersona?: (persona: Persona) => void;
+  onUpdatePersonas?: (personas: Persona[]) => Promise<void> | void;
   embedded?: boolean;
 }
 
@@ -52,9 +62,13 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
   selectedPersona,
   onSelectPersona,
   onUpdatePersona,
+  onUpdatePersonas,
   embedded = false
 }) => {
   const { user } = useAuth();
+
+  // Active tab state
+  const [activeStudioTab, setActiveStudioTab] = useState<string>('record');
 
   // Active target persona for recording/filtering
   const [targetPersonaId, setTargetPersonaId] = useState<string>(selectedPersona.id);
@@ -74,6 +88,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
   const [sampleTranscript, setSampleTranscript] = useState<string>('');
   const [sampleNotes, setSampleNotes] = useState<string>('');
   const [isBaseReference, setIsBaseReference] = useState<boolean>(true);
+  const [isSourceUploaderOpen, setIsSourceUploaderOpen] = useState<boolean>(false);
 
   // Upload / Save state
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -470,6 +485,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
     : samples;
 
   const currentBaseReference = samples.find(s => s.personaId === targetPersona.id && s.isBaseReference);
+  const activeCloningReport = calculateCloningQuality(targetPersona, samples);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -517,6 +533,26 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
             ))}
           </select>
 
+          {/* Active Persona Radial Quality Score Pill */}
+          <div 
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/40 border border-[#dfc486]/30 cursor-pointer hover:border-[#dfc486] transition-colors"
+            title={`${targetPersona.name} Cloning Quality: ${activeCloningReport.score}% (${activeCloningReport.tier})`}
+            onClick={() => setActiveStudioTab('upload')}
+          >
+            <RadialQualityScore
+              score={activeCloningReport.score}
+              size="xs"
+              strokeWidth={2.5}
+              tier={activeCloningReport.tier}
+            />
+            <div className="text-[10px] font-mono flex items-center gap-1">
+              <span className="font-bold" style={{ color: activeCloningReport.tierColor }}>
+                {activeCloningReport.score}%
+              </span>
+              <span className="text-zinc-400 hidden sm:inline">Quality</span>
+            </div>
+          </div>
+
           {currentBaseReference ? (
             <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-300 text-[10px] font-mono gap-1">
               <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
@@ -527,6 +563,20 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
               No Base Ref Set
             </Badge>
           )}
+
+          <button
+            type="button"
+            onClick={() => setActiveStudioTab('bulk-tagging')}
+            className={`px-2.5 py-1 rounded-lg border text-[10px] font-mono flex items-center gap-1.5 transition-colors cursor-pointer ${
+              activeStudioTab === 'bulk-tagging'
+                ? 'bg-[#dfc486] text-black font-bold border-[#dfc486]'
+                : 'bg-[#dfc486]/10 text-[#dfc486] border-[#dfc486]/30 hover:bg-[#dfc486]/20'
+            }`}
+            title="Open Bulk Trait & Memory Studio"
+          >
+            <Tag className="w-3 h-3" />
+            Bulk Tagging
+          </button>
 
           {!embedded && onClose && (
             <Button 
@@ -541,8 +591,29 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
         </div>
       </div>
 
+      {/* Top Council Synthesis Fidelity Matrix - Radial progress bar for EACH persona */}
+      <div className="space-y-4">
+        <PersonaQualityRoster
+          personas={personas}
+          selectedPersonaId={targetPersona.id}
+          onSelectPersona={(p) => {
+            setTargetPersonaId(p.id);
+            onSelectPersona?.(p);
+          }}
+          samples={samples}
+        />
+
+        {/* Active Knight Cloning Quality & Synthesis Diagnostics */}
+        <CloningQualityCard
+          persona={targetPersona}
+          samples={samples}
+          onAddSourceClick={() => setIsSourceUploaderOpen(true)}
+          onRecordClick={() => setActiveStudioTab('record')}
+        />
+      </div>
+
       {/* Main Studio Workspace Tabs */}
-      <Tabs defaultValue="record" className="w-full">
+      <Tabs value={activeStudioTab} onValueChange={setActiveStudioTab} className="w-full">
         <TabsList className="bg-[#0b1622] border border-[#dfc486]/20 p-1 rounded-lg gap-2">
           <TabsTrigger 
             value="record" 
@@ -564,6 +635,13 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
           >
             <Database className="w-3.5 h-3.5" />
             Storage Vault ({samples.length})
+          </TabsTrigger>
+          <TabsTrigger 
+            value="bulk-tagging" 
+            className="text-xs font-mono data-[state=active]:bg-[#dfc486] data-[state=active]:text-[#080b10] gap-1.5"
+          >
+            <Tag className="w-3.5 h-3.5" />
+            Bulk Trait Tagging
           </TabsTrigger>
         </TabsList>
 
@@ -758,35 +836,109 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
           </div>
         </TabsContent>
 
-        {/* TAB 2: Audio File Import */}
+        {/* TAB 2: Audio File & Reference Sources Import */}
         <TabsContent value="upload" className="space-y-6 pt-4">
-          <div className="p-8 rounded-xl bg-[#0c121b] border border-dashed border-[#dfc486]/40 text-center space-y-4">
-            <div className="w-12 h-12 rounded-full bg-[#dfc486]/10 border border-[#dfc486]/30 flex items-center justify-center mx-auto text-[#dfc486]">
-              <UploadCloud className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-serif text-lg text-[#efece4]">Import Studio Audio Reference</h3>
-              <p className="text-xs text-[#89909b] mt-1 max-w-md mx-auto">
-                Upload master recordings, vocal tests, or soundbites in WAV, MP3, WEBM, or OGG format (up to 20MB).
-              </p>
-            </div>
-
-            <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#dfc486] hover:bg-[#eccd8f] text-[#080b10] font-mono font-bold text-xs cursor-pointer shadow-md transition-all">
-              <FileAudio className="w-4 h-4" />
-              Browse Audio File
-              <input 
-                type="file" 
-                accept="audio/*" 
-                onChange={handleFileDrop}
-                className="hidden" 
-              />
-            </label>
-
-            {recordedAudioUrl && (
-              <div className="text-xs text-[#dfc486] font-mono mt-2">
-                &check; Audio loaded: ready in Live Recorder tab for preview and storage commit!
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Audio File Acoustic Import */}
+            <div className="p-6 rounded-xl bg-[#0c121b] border border-dashed border-[#dfc486]/40 text-center space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-12 h-12 rounded-full bg-[#dfc486]/10 border border-[#dfc486]/30 flex items-center justify-center mx-auto text-[#dfc486]">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-base text-[#efece4]">Acoustic Audio Samples</h3>
+                  <p className="text-xs text-[#89909b] mt-1">
+                    Upload voice recordings (WAV, MP3, WEBM, OGG) to establish vocal resonance and timbre.
+                  </p>
+                </div>
               </div>
-            )}
+
+              <div>
+                <label className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[#dfc486] hover:bg-[#eccd8f] text-[#080b10] font-mono font-bold text-xs cursor-pointer shadow-md transition-all">
+                  <FileAudio className="w-4 h-4" />
+                  Browse Audio File
+                  <input 
+                    type="file" 
+                    accept="audio/*" 
+                    onChange={handleFileDrop}
+                    className="hidden" 
+                  />
+                </label>
+
+                {recordedAudioUrl && (
+                  <div className="text-xs text-[#dfc486] font-mono mt-2">
+                    &check; Audio loaded: ready in Live Recorder tab for preview and storage commit!
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Linguistic Grounding Sources & Scripts (Fidelity Booster) */}
+            <div className="p-6 rounded-xl bg-[#0c121b] border border-[#dfc486]/30 text-left space-y-4 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadialQualityScore
+                      score={activeCloningReport.score}
+                      size="sm"
+                      strokeWidth={3}
+                      tier={activeCloningReport.tier}
+                    />
+                    <div className="text-right">
+                      <div className="text-xs font-mono font-bold" style={{ color: activeCloningReport.tierColor }}>
+                        {activeCloningReport.score}%
+                      </div>
+                      <div className="text-[9px] font-mono text-zinc-500">Quality Score</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-serif text-base text-[#efece4]">
+                    Grounding Sources &amp; Transcripts
+                  </h3>
+                  <p className="text-xs text-[#89909b] mt-1">
+                    Upload manuscripts, markdown specs, or URLs. Every text source elevates the synthesis fidelity and linguistic grounding score.
+                  </p>
+                </div>
+
+                {/* Current sources list preview */}
+                <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                  {targetPersona.sources && targetPersona.sources.length > 0 ? (
+                    targetPersona.sources.map((src, i) => (
+                      <div 
+                        key={src.id || i}
+                        className="px-2.5 py-1.5 rounded-lg bg-black/40 border border-zinc-800 flex items-center justify-between text-xs font-mono"
+                      >
+                        <span className="truncate max-w-[200px] text-zinc-300">
+                          {src.name}
+                        </span>
+                        <span className="text-[10px] text-zinc-500 uppercase shrink-0">
+                          {src.type}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-xs text-zinc-500 italic py-2">
+                      No grounding sources uploaded yet for {targetPersona.name}.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <Button
+                  onClick={() => setIsSourceUploaderOpen(true)}
+                  className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-200 font-mono text-xs gap-2"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  Manage / Upload Reference Sources
+                </Button>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
@@ -950,7 +1102,38 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
             </div>
           )}
         </TabsContent>
+
+        {/* TAB 4: Bulk Trait & Memory Tagging */}
+        <TabsContent value="bulk-tagging" className="space-y-6 pt-4">
+          <BulkTaggingStudio
+            personas={personas}
+            selectedPersonaId={targetPersonaId}
+            onSelectPersona={onSelectPersona}
+            onUpdatePersonas={async (updatedList) => {
+              if (onUpdatePersonas) {
+                await onUpdatePersonas(updatedList);
+              } else if (onUpdatePersona) {
+                for (const p of updatedList) {
+                  onUpdatePersona(p);
+                }
+              }
+            }}
+            embedded={embedded}
+          />
+        </TabsContent>
       </Tabs>
+
+      {/* Grounding Sources & Scripts Uploader Modal */}
+      <VoiceSourceUploader
+        isOpen={isSourceUploaderOpen}
+        onClose={() => setIsSourceUploaderOpen(false)}
+        persona={targetPersona}
+        onUpdatePersona={(updated) => {
+          if (onUpdatePersona) {
+            onUpdatePersona(updated);
+          }
+        }}
+      />
     </div>
   );
 

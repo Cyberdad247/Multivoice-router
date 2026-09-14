@@ -84,3 +84,24 @@ export interface TailscaleDevice {
   online: boolean;
   os: string;
 }
+
+export type BulkTraitCategory = 'system' | 'memory';
+
+export interface BulkTraitDefinition {
+  id: string;
+  name: string;
+  category: BulkTraitCategory;
+  description: string;
+  directiveContent: string; // The specific system directive or memory statement to inject
+  badgeColor?: string;
+  isCustom?: boolean;
+}
+
+export interface BulkTaggingOptions {
+  targetPersonaIds: string[];
+  traits: BulkTraitDefinition[];
+  applyToTraitsList: boolean;
+  applyToMemory: boolean;
+  applyToSystemInstruction: boolean;
+  mode: 'append' | 'replace';
+}

@@ -10,7 +10,8 @@ import {
   serverTimestamp, 
   orderBy,
   limit,
-  addDoc
+  addDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { Persona } from '../types/persona';
@@ -56,6 +57,25 @@ export const personaService = {
         ownerId: auth.currentUser.uid,
         updatedAt: serverTimestamp()
       }, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, 'write', path);
+    }
+  },
+
+  async savePersonas(personasToSave: Persona[]) {
+    if (!auth.currentUser || personasToSave.length === 0) return;
+    const path = 'personas/batch';
+    try {
+      const batch = writeBatch(db);
+      for (const persona of personasToSave) {
+        const docRef = doc(db, 'personas', persona.id);
+        batch.set(docRef, {
+          ...persona,
+          ownerId: auth.currentUser.uid,
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      }
+      await batch.commit();
     } catch (e) {
       handleFirestoreError(e, 'write', path);
     }

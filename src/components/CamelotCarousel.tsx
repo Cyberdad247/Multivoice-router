@@ -51,6 +51,7 @@ export interface CamelotCarouselProps {
   onOpenLicense?: () => void;
   onOpenArtemis?: () => void;
   onOpenBlastDag?: () => void;
+  onOpenTriage?: () => void;
   onCloseAllModals?: () => void;
   userFriendlyMode?: boolean;
   onToggleUserFriendlyMode?: (friendly: boolean) => void;
@@ -76,6 +77,7 @@ export function CamelotCarousel({
   onOpenLicense,
   onOpenArtemis,
   onOpenBlastDag,
+  onOpenTriage,
   onCloseAllModals,
   userFriendlyMode = true,
   onToggleUserFriendlyMode,
@@ -150,12 +152,21 @@ export function CamelotCarousel({
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const sequenceRef = useRef<number>(0);
 
-  // Load browser device voices
+  // Load browser device voices with deduplication to prevent collisions
   const loadVoices = useCallback(() => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     const voices = window.speechSynthesis.getVoices();
     if (voices && voices.length > 0) {
-      setDeviceVoices(voices);
+      const seen = new Set<string>();
+      const deduped: SpeechSynthesisVoice[] = [];
+      for (const v of voices) {
+        const id = `${v.voiceURI || v.name}:::${v.lang}:::${v.localService ? 'local' : 'remote'}`;
+        if (!seen.has(id)) {
+          seen.add(id);
+          deduped.push(v);
+        }
+      }
+      setDeviceVoices(deduped.length > 0 ? deduped : voices);
     }
   }, []);
 
@@ -337,7 +348,7 @@ export function CamelotCarousel({
 
     // Find voice
     const matchedVoice =
-      deviceVoices.find(v => v.voiceURI === selectedDeviceVoice) ||
+      deviceVoices.find(v => v.voiceURI === selectedDeviceVoice || v.name === selectedDeviceVoice) ||
       deviceVoices.find(v => v.default && /^en/i.test(v.lang)) ||
       deviceVoices.find(v => /^en/i.test(v.lang));
 
@@ -437,12 +448,15 @@ export function CamelotCarousel({
       } else if (e.key === 'd' || e.key === 'D') {
         e.preventDefault();
         onOpenDiagnostics?.();
+      } else if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        onOpenTriage?.();
       }
     };
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [totalCount, selectKnight, handleAwaken, onConnect, onToggleBlastHud, onOpenTelephony, onOpenLicense, onOpenArtemis, onOpenDiagnostics]);
+  }, [totalCount, selectKnight, handleAwaken, onConnect, onToggleBlastHud, onOpenTelephony, onOpenLicense, onOpenArtemis, onOpenDiagnostics, onOpenTriage]);
 
   // Pointer drag & mouse tilt handlers
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -712,6 +726,19 @@ export function CamelotCarousel({
                       <kbd className="text-[10px] text-zinc-400 bg-zinc-900 border border-zinc-800 px-1.5 rounded">D</kbd>
                     </button>
                   )}
+                  {onOpenTriage && (
+                    <button
+                      type="button"
+                      className="w-full text-left px-2.5 py-1.5 rounded hover:bg-zinc-800 text-emerald-400 flex items-center justify-between transition-colors"
+                      onClick={onOpenTriage}
+                    >
+                      <span className="flex items-center gap-2">
+                        <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Self-Triage</span>
+                      </span>
+                      <kbd className="text-[10px] text-emerald-400 bg-zinc-900 border border-emerald-900/50 px-1.5 rounded">E</kbd>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -727,6 +754,17 @@ export function CamelotCarousel({
                 >
                   <Mic className="w-3.5 h-3.5" />
                   <span>Voice Studio</span>
+                </button>
+              )}
+              {onOpenTriage && (
+                <button
+                  type="button"
+                  className="text-button text-xs hidden lg:inline-flex text-emerald-400 hover:text-emerald-300"
+                  onClick={onOpenTriage}
+                  title="Open Self-Error Triage Engine (NanoClaw + NanoBot) [Hotkey: E]"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Self-Triage [E]</span>
                 </button>
               )}
               {onToggleBlastHud && (
@@ -928,7 +966,7 @@ export function CamelotCarousel({
 
                       return (
                         <div
-                          key={p.id}
+                          key={`matrix-${p.id}-${pIdx}`}
                           onClick={() => selectKnight(pIdx)}
                           className={`group relative rounded-xl border p-3 transition-all duration-300 cursor-pointer overflow-hidden ${
                             isSelected
@@ -1064,7 +1102,7 @@ export function CamelotCarousel({
 
                       return (
                         <div
-                          key={p.id}
+                          key={`rotor-${p.id}-${i}`}
                           className={`armor-card ${isSelected ? 'selected' : ''}`}
                           style={renderCardStyle(i)}
                           data-index={i}
@@ -1272,7 +1310,7 @@ export function CamelotCarousel({
                     const isSelected = pIdx === index;
                     return (
                       <button
-                        key={p.id}
+                        key={`dock-${p.id}-${pIdx}`}
                         type="button"
                         className={`dock-item ${isSelected ? 'active' : ''}`}
                         onClick={() => selectKnight(pIdx)}
@@ -1316,8 +1354,8 @@ export function CamelotCarousel({
               </p>
 
               <div id="traits" className="traits">
-                {(activeKnight.traits || ['Commanding', 'Resonant', 'Deliberate']).map(trait => (
-                  <span key={trait}>{trait}</span>
+                {(activeKnight.traits || ['Commanding', 'Resonant', 'Deliberate']).map((trait, tIdx) => (
+                  <span key={`trait-${trait}-${tIdx}`}>{trait}</span>
                 ))}
               </div>
 
@@ -1537,12 +1575,15 @@ export function CamelotCarousel({
                     }}
                   >
                     <option value="">Device default</option>
-                    {deviceVoices.map(v => (
-                      <option key={v.voiceURI} value={v.voiceURI}>
-                        {v.name} · {v.lang}
-                        {v.localService ? ' · device' : ''}
-                      </option>
-                    ))}
+                    {deviceVoices.map((v, vIdx) => {
+                      const voiceKey = `dev-voice-${v.voiceURI || v.name}-${v.lang}-${v.localService ? 'local' : 'remote'}-${vIdx}`;
+                      return (
+                        <option key={voiceKey} value={v.voiceURI || v.name}>
+                          {v.name} · {v.lang}
+                          {v.localService ? ' · device' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                   <p className="fallback-note">
                     {voiceEngine === 'gemini'
@@ -1595,7 +1636,7 @@ export function CamelotCarousel({
 
                 return (
                   <button
-                    key={p.id}
+                    key={`roster-${p.id}-${i}`}
                     className="roster-button"
                     data-index={i}
                     aria-label={`Select ${p.name}, ${p.voice} voice. Hotkey: ${i + 1}`}

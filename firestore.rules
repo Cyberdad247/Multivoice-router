@@ -22,7 +22,8 @@ service cloud.firestore {
         && data.role is string && data.role.size() <= 100
         && data.ownerId == request.auth.uid
         && (data.voice == null || data.voice in ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr', 'Aoede'])
-        && (data.memory == null || (data.memory is list && data.memory.size() <= 20))
+        && (data.memory == null || (data.memory is list && data.memory.size() <= 30))
+        && (data.traits == null || (data.traits is list && data.traits.size() <= 30))
         && (data.updatedAt == request.time);
     }
 
@@ -80,7 +81,7 @@ service cloud.firestore {
         && incoming().id == existing().id // Immutable ID
         && incoming().diff(existing()).affectedKeys().hasOnly([
           'name', 'role', 'description', 'voice', 'systemInstruction', 
-          'attributes', 'memory', 'sources', 'notebookConfig', 
+          'attributes', 'memory', 'traits', 'sources', 'notebookConfig', 
           'bridgeConfig', 'rustDeskConfig', 'baseVoiceSampleId', 
           'baseVoiceSampleUrl', 'updatedAt'
         ]);

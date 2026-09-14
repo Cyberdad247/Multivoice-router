@@ -254,6 +254,25 @@ export default function App() {
     setDialogConfig(null);
   };
 
+  const handleUpdateMultiplePersonas = async (updatedList: Persona[]) => {
+    const updatedMap = new Map(updatedList.map(p => [p.id, p]));
+    const nextPersonas = personas.map(p => updatedMap.get(p.id) || p);
+    setPersonas(nextPersonas);
+
+    const activeUpdated = updatedList.find(p => p.id === selectedPersona.id);
+    if (activeUpdated) {
+      setSelectedPersona(activeUpdated);
+    }
+
+    if (user) {
+      try {
+        await personaService.savePersonas(updatedList);
+      } catch (err) {
+        console.warn('Could not persist all bulk personas to cloud:', err);
+      }
+    }
+  };
+
   const handleCreateNew = () => {
     if (isConnected) {
       toast.error("Disconnect current session before creating new personas");
@@ -318,6 +337,7 @@ export default function App() {
         selectedPersona={selectedPersona}
         onSelectPersona={handlePersonaChange}
         onUpdatePersona={handleSavePersona}
+        onUpdatePersonas={handleUpdateMultiplePersonas}
       />
 
       {/* Sovereign Telephony & SIP Gateway Modal */}
@@ -462,6 +482,7 @@ export default function App() {
                       selectedPersona={selectedPersona}
                       onSelectPersona={handlePersonaChange}
                       onUpdatePersona={handleSavePersona}
+                      onUpdatePersonas={handleUpdateMultiplePersonas}
                     />
                   </TabsContent>
 

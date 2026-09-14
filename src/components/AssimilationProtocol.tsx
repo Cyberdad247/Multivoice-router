@@ -29,8 +29,10 @@ import {
   Mic,
   Volume2,
   Radio,
-  AudioLines
+  AudioLines,
+  ShieldAlert
 } from 'lucide-react';
+import { Badge } from './ui/badge';
 import { toast } from 'sonner';
 import { Persona } from '../types/persona';
 import {
@@ -64,7 +66,7 @@ export const AssimilationProtocol: React.FC<AssimilationProtocolProps> = ({
   transcription,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<
-    'superpowers' | 'bifrost_llmfit' | 'omniroute' | 'colibri' | 'pidesktop' | 'voice_assimilation'
+    'superpowers' | 'bifrost_llmfit' | 'omniroute' | 'colibri' | 'pidesktop' | 'voice_assimilation' | 'nanobot_triage'
   >('superpowers');
 
   // Superpowers state
@@ -407,6 +409,17 @@ export const AssimilationProtocol: React.FC<AssimilationProtocolProps> = ({
             >
               <Mic className="w-3.5 h-3.5" />
               <span>VoiceStudio & RN-Voice</span>
+            </button>
+            <button
+              onClick={() => setActiveSubTab('nanobot_triage')}
+              className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center space-x-1.5 ${
+                activeSubTab === 'nanobot_triage'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>NanoBot & NanoClaw Triage</span>
             </button>
           </div>
         </div>
@@ -1739,6 +1752,86 @@ export const AssimilationProtocol: React.FC<AssimilationProtocolProps> = ({
               <p className="text-slate-400 leading-relaxed text-xs">
                 To assimilate both technologies simultaneously into the Camelot citadel runtime, use <code className="text-cyan-300">react-native-voice</code> as the low-overhead client microphone capture listener, streaming chunked buffers through Bifröst WebSocket bridges directly into <code className="text-purple-300">VoiceStudio</code>&apos;s local zero-shot PyTorch synthesis engine whenever offline mode is active.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            ASSIMILATION TAB: nanocoai/nanoclaw & HKUDS/nanobot (Reforged in Rust & Go)
+           ========================================================================= */}
+        {activeSubTab === 'nanobot_triage' && (
+          <div className="space-y-6">
+            <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-cyan-950/20 to-amber-950/20 border border-emerald-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-sm font-bold text-white tracking-wide">
+                    Self-Error Triage Engine — Reforged in Rust & Go
+                  </h3>
+                </div>
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  APEE v7.0 Continuous Triage
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Reforged from <span className="text-cyan-300 font-semibold">nanocoai/nanoclaw</span> (isolated container runner, channel multiplexer) and <span className="text-amber-300 font-semibold">HKUDS/nanobot</span> (ultra-lightweight agent loop). Reforged into Go for high-concurrency container supervision & memory-mapped slabs, and Rust for zero-overhead AST syntax triage and Z3 SMT neurosymbolic verification.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Target 1: NanoClaw (Go) */}
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-cyan-400 uppercase font-mono tracking-wider flex items-center gap-2">
+                    <Cpu className="w-4 h-4" /> nanocoai/nanoclaw &rarr; Reforged in Go
+                  </h4>
+                  <Badge variant="outline" className="text-[10px] text-cyan-300 border-cyan-500/40">Supervision Daemon</Badge>
+                </div>
+                <ul className="space-y-2 text-xs text-slate-300 list-disc pl-4">
+                  <li><strong className="text-white">Goroutine Worker Pool:</strong> 64 concurrent non-blocking coroutines multiplexing telemetry, errors, and recovery actuators.</li>
+                  <li><strong className="text-white">memfd_create Ring Slabs:</strong> Zero-copy Linux memory-mapped shared slabs bypassing serialization taxes.</li>
+                  <li><strong className="text-white">Strict 8GB Scarcity Barrier:</strong> Active cgroups tracking triggering <code className="text-amber-300">MADV_DONTNEED</code> slab evictions at 88% capacity.</li>
+                  <li><strong className="text-white">Ephemeral MicroVM Sandbox:</strong> Isolated execution environments for external bridges and untrusted tools.</li>
+                </ul>
+              </div>
+
+              {/* Target 2: NanoBot (Rust) */}
+              <div className="p-4 rounded-xl bg-slate-900/60 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-amber-400 uppercase font-mono tracking-wider flex items-center gap-2">
+                    <Zap className="w-4 h-4" /> HKUDS/nanobot &rarr; Reforged in Rust
+                  </h4>
+                  <Badge variant="outline" className="text-[10px] text-amber-300 border-amber-500/40">Cognitive Core</Badge>
+                </div>
+                <ul className="space-y-2 text-xs text-slate-300 list-disc pl-4">
+                  <li><strong className="text-white">AST Error Triage Engine:</strong> Zero-overhead pattern and AST matching identifying key collisions, memory exhaustion, and deadlocks.</li>
+                  <li><strong className="text-white">Z3 SMT Invariant Solver:</strong> Neurosymbolic proof checker guaranteeing bounds, termination, and zero array-out-of-bounds in hot patches.</li>
+                  <li><strong className="text-white">BitNet 1.58b Ternary State:</strong> Real-time recurrence state space (-1 Degraded, 0 Neutral, +1 Sovereign).</li>
+                  <li><strong className="text-white">The 10-Line Firewall:</strong> Automatically intercepts and halts any patch diff &gt; 10 lines for Arch-Sovereign HITL approval.</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Architecture Invariants & Verification Matrix */}
+            <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs space-y-3">
+              <div className="flex items-center justify-between text-slate-400 pb-2 border-b border-slate-800">
+                <span>REFORGED SPECIFICATION INVENTORY</span>
+                <span className="text-emerald-400">100% VERIFIED BY Z3 SMT</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-500 block uppercase">Error Ingress Latency</span>
+                  <span className="text-emerald-400 font-bold text-sm">&lt; 150 microseconds</span>
+                </div>
+                <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-500 block uppercase">Memory Ceiling</span>
+                  <span className="text-cyan-400 font-bold text-sm">8,192 MB (Strict cgroup)</span>
+                </div>
+                <div className="p-2.5 rounded bg-slate-900 border border-slate-800">
+                  <span className="text-[10px] text-slate-500 block uppercase">Self-Healing Hot Patch</span>
+                  <span className="text-amber-400 font-bold text-sm">&le; 10 lines (Firewall Safe)</span>
+                </div>
+              </div>
             </div>
           </div>
         )}

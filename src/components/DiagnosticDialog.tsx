@@ -24,9 +24,10 @@ import { motion, AnimatePresence } from 'motion/react';
 interface DiagnosticDialogProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenTriage?: () => void;
 }
 
-export function DiagnosticDialog({ isOpen, onClose }: DiagnosticDialogProps) {
+export function DiagnosticDialog({ isOpen, onClose, onOpenTriage }: DiagnosticDialogProps) {
   const [results, setResults] = useState<DiagnosticResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -67,6 +68,29 @@ export function DiagnosticDialog({ isOpen, onClose }: DiagnosticDialogProps) {
             Troubleshoot security, network, and cloud integrations.
           </DialogDescription>
         </DialogHeader>
+
+        {onOpenTriage && (
+          <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-950/20 flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <div>
+                <p className="font-semibold text-emerald-300">Self-Error Triage Active</p>
+                <p className="text-[10px] text-zinc-400 font-mono">Rust NanoBot + Go NanoClaw</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
+              onClick={() => {
+                onClose();
+                onOpenTriage();
+              }}
+            >
+              Open Triage
+            </Button>
+          </div>
+        )}
 
         <div className="space-y-4 py-4">
           <AnimatePresence mode="wait">

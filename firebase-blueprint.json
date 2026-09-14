@@ -20,6 +20,7 @@
           }
         },
         "memory": { "type": "array", "items": { "type": "string" } },
+        "traits": { "type": "array", "items": { "type": "string" } },
         "sources": {
           "type": "array",
           "items": {
