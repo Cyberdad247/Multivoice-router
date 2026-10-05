@@ -106,6 +106,8 @@ export interface CallReceipt {
   outcome: ReceiptOutcome;
   ledger_event_id: string;
   committed_at: string;
+  /** Hash-chain link: digest of the previous receipt, null for the chain head. */
+  prev_receipt_digest?: string | null;
 }
 
 export interface PillBinding {

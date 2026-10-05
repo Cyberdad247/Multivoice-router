@@ -97,6 +97,14 @@ export const COMMUNICATIONS_CARTRIDGE_MANIFEST: CartridgeManifest = {
       status: 'verified',
       docsRef: 'docs/cartridges/communications/voice-003-simulator.md',
     },
+    {
+      id: 'gideon-verification',
+      title: 'VOICE-004 Gideon Verification',
+      description:
+        'Independent re-verification of the full dispatch chain (digest, approval, lease, policy, signatures, tenant, evidence, outcome). Receipts finalize only on pass. Tamper-evident hash-chained receipts. 13 tests green.',
+      status: 'verified',
+      docsRef: 'docs/cartridges/communications/voice-004-gideon.md',
+    },
   ],
   contracts: [
     { name: 'VoiceIntent', version: 'voice.v1', summary: 'Bounded caller goal proposal; not authority.' },
