@@ -81,6 +81,14 @@ export const COMMUNICATIONS_CARTRIDGE_MANIFEST: CartridgeManifest = {
       status: 'blocked',
       docsRef: 'docs/cartridges/communications/ukg-comms-cartridge-nano-v1.md',
     },
+    {
+      id: 'policy-consent-engine',
+      title: 'VOICE-002 Policy / Consent Engine',
+      description:
+        'Intent policy (allow/deny), manifest policy (approval_required/deny), consent lifecycle with jurisdiction-aware disclosure, human approval bound to exact manifest digest, one-shot short-lived lease issuance, and revocation kill switch. 19 tests green.',
+      status: 'verified',
+      docsRef: 'docs/cartridges/communications/ukg-nano-contact-center-amendment-v1.md',
+    },
   ],
   contracts: [
     { name: 'VoiceIntent', version: 'voice.v1', summary: 'Bounded caller goal proposal; not authority.' },
