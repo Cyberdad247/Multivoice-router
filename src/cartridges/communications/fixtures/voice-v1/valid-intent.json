@@ -1,0 +1,11 @@
+{
+  "schema_version": "voice.v1",
+  "intent_id": "intent_001",
+  "tenant_id": "tenant_acme",
+  "call_session_id": "cs_001",
+  "caller_goal": "Reschedule dental appointment to next week",
+  "issue_type": "scheduling",
+  "urgency": "routine",
+  "human_requested": false,
+  "created_at": "2026-10-04T20:00:00Z"
+}

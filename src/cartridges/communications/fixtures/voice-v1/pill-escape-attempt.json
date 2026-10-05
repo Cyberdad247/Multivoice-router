@@ -1,0 +1,6 @@
+{
+  "pill_id": "pill_voice_01",
+  "tenant_id": "tenant_acme",
+  "requested_task": "provider_dispatch",
+  "workflow_ref": "wf_voice_mgmt_v1"
+}

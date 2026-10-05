@@ -1,0 +1,11 @@
+{
+  "schema_version": "voice.v1",
+  "lease_id": "lease_001",
+  "manifest_digest": "ddf97318abaa48aaaf7d6e91b5ad751c6890af138a0d6584e3f8b6e23805f49b",
+  "tenant_id": "tenant_acme",
+  "action": "transfer",
+  "issued_at": "2026-10-04T20:00:00Z",
+  "expires_at": "2099-01-01T00:00:00Z",
+  "consumed": false,
+  "revoked": false
+}

@@ -1,0 +1,10 @@
+{
+  "schema_version": "voice.v1",
+  "tenant_id": "tenant_acme",
+  "call_session_id": "cs_001",
+  "recording": "granted",
+  "ai_disclosure": "completed",
+  "jurisdiction_hint": "US-OH-two-party",
+  "evidence_ref": "transcript://cs_001#12",
+  "captured_at": "2026-10-04T20:00:30Z"
+}

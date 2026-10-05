@@ -1,0 +1,20 @@
+{
+  "schema_version": "voice.v1",
+  "manifest_id": "man_001",
+  "tenant_id": "tenant_acme",
+  "call_session_id": "cs_001",
+  "correlation_id": "corr_001",
+  "idempotency_key": "idem_001",
+  "action": "transfer",
+  "action_params": {
+    "department": "scheduling"
+  },
+  "consent_state": {
+    "recording": "granted",
+    "ai_disclosure": "completed"
+  },
+  "policy_version": "policy-2026-10-04",
+  "created_at": "2026-10-04T20:00:00Z",
+  "expires_at": "2099-01-01T00:00:00Z",
+  "canonical_digest": "ddf97318abaa48aaaf7d6e91b5ad751c6890af138a0d6584e3f8b6e23805f49b"
+}

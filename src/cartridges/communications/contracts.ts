@@ -221,3 +221,30 @@ export function validateProviderEventCrossTenant(
     errors.push('Provider event not signature-verified: quarantine, never trust.');
   return { ok: errors.length === 0, errors };
 }
+
+/**
+ * Pill task authorization: a Pill may only perform tasks in its allowlist.
+ * Anything else — especially provider_dispatch or mint_authority — is denied.
+ */
+export function isPillTaskAllowed(binding: PillBinding, task: string): boolean {
+  if (binding.prohibited_tasks.includes(task)) return false;
+  return binding.allowed_tasks.includes(task);
+}
+
+/**
+ * Webhook deduplication key: same provider call + same sequence = same event.
+ * A delayed duplicate must return the original result, never re-dispatch.
+ */
+export function eventDedupKey(event: ProviderVoiceEvent): string {
+  return `${event.provider_call_id}:${event.event_sequence}`;
+}
+
+export function isDuplicateEvent(
+  seen: Set<string>,
+  event: ProviderVoiceEvent,
+): { duplicate: boolean; key: string } {
+  const key = eventDedupKey(event);
+  if (seen.has(key)) return { duplicate: true, key };
+  seen.add(key);
+  return { duplicate: false, key };
+}

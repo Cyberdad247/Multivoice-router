@@ -1,0 +1,8 @@
+{
+  "schema_version": "voice.v1",
+  "tenant_id": "tenant_acme",
+  "call_session_id": "cs_003",
+  "recording": "unknown",
+  "ai_disclosure": "required",
+  "captured_at": "2026-10-04T20:02:00Z"
+}

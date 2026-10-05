@@ -1,0 +1,10 @@
+{
+  "schema_version": "voice.v1",
+  "intent_id": "intent_002",
+  "call_session_id": "cs_002",
+  "caller_goal": "Billing question about last invoice",
+  "issue_type": "billing",
+  "urgency": "routine",
+  "human_requested": false,
+  "created_at": "2026-10-04T20:05:00Z"
+}

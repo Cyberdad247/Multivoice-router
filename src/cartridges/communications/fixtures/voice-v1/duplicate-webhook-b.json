@@ -1,0 +1,13 @@
+{
+  "schema_version": "voice.v1",
+  "tenant_id": "tenant_acme",
+  "call_session_id": "cs_001",
+  "provider": "fonoster",
+  "provider_call_id": "pc_001",
+  "event_type": "transcript_final",
+  "event_sequence": 7,
+  "payload_ref": "audio://cs_001/seg_007",
+  "signature": "sig_valid_abc123",
+  "signature_valid": "verified",
+  "received_at": "2026-10-04T20:01:05Z"
+}

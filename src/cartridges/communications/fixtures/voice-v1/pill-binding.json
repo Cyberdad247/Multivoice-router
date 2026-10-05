@@ -1,0 +1,24 @@
+{
+  "schema_version": "voice.v1",
+  "pill_id": "pill_voice_01",
+  "tenant_id": "tenant_acme",
+  "microvms": [
+    "mvm-routr-01:routr",
+    "mvm-rtp-01:rtpengine",
+    "mvm-ast-01:asterisk",
+    "mvm-adapter-01:adapter"
+  ],
+  "workflow_ref": "wf_voice_mgmt_v1",
+  "workflow_version": "1.0.0",
+  "allowed_tasks": [
+    "start",
+    "stop",
+    "healthcheck",
+    "rotate-logs"
+  ],
+  "prohibited_tasks": [
+    "mint_authority",
+    "provider_dispatch",
+    "cross_tenant_access"
+  ]
+}
