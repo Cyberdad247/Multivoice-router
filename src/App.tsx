@@ -28,6 +28,7 @@ import { TelephonyModal } from './components/TelephonyModal';
 import { SystemVitalsBar } from './components/SystemVitalsBar';
 import { VocalLicenseModal } from './components/VocalLicenseModal';
 import { ArtemisRunnerModal } from './components/ArtemisRunnerModal';
+import { CartridgePanel } from './components/CartridgePanel';
 import { 
   Mic, 
   MicOff, 
@@ -453,6 +454,10 @@ export default function App() {
                       <Cpu className="w-3.5 h-3.5 mr-1" />
                       Google Artemis
                     </TabsTrigger>
+                    <TabsTrigger value="cartridges" className="text-xs data-[state=active]:text-[#dfc486] data-[state=active]:border-b-2 data-[state=active]:border-[#dfc486] rounded-none px-2">
+                      <Layers className="w-3.5 h-3.5 mr-1" />
+                      Cartridges
+                    </TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="chat" className="pt-2 max-h-[30vh] overflow-y-auto">
@@ -502,6 +507,10 @@ export default function App() {
                       onClose={() => {}}
                       selectedPersona={selectedPersona}
                     />
+                  </TabsContent>
+
+                  <TabsContent value="cartridges" className="pt-2 max-h-[35vh] overflow-y-auto">
+                    <CartridgePanel />
                   </TabsContent>
                 </Tabs>
               </div>
