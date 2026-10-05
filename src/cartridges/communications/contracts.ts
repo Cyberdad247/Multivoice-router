@@ -102,7 +102,7 @@ export interface CallReceipt {
   manifest_digest: string;
   lease_id: string;
   provider_evidence_refs: string[];
-  gideon_verdict: 'pass' | 'fail';
+  gideon_verdict: 'pass' | 'fail' | 'pending';
   outcome: ReceiptOutcome;
   ledger_event_id: string;
   committed_at: string;

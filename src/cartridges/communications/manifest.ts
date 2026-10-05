@@ -89,6 +89,14 @@ export const COMMUNICATIONS_CARTRIDGE_MANIFEST: CartridgeManifest = {
       status: 'verified',
       docsRef: 'docs/cartridges/communications/ukg-nano-contact-center-amendment-v1.md',
     },
+    {
+      id: 'provider-simulator',
+      title: 'VOICE-003 Provider Simulator',
+      description:
+        'Deterministic HMAC-signed provider simulator + webhook normalizer. Proves policy → approval → lease → dispatch → events → receipt without a live provider. 6 scripted scenarios (happy path, timeout, duplicate, out-of-order, unsigned, error); failures reconcile, never blind-retry. 15 tests green.',
+      status: 'verified',
+      docsRef: 'docs/cartridges/communications/voice-003-simulator.md',
+    },
   ],
   contracts: [
     { name: 'VoiceIntent', version: 'voice.v1', summary: 'Bounded caller goal proposal; not authority.' },
