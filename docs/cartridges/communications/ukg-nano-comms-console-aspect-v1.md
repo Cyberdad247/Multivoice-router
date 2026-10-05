@@ -72,7 +72,7 @@ CARTRIDGE_ASPECT:
   stack:
     frontend: "htmx — server-rendered HTML fragments swapped into the pane; zero client-side authority"
     backend: "Go server — renders fragments, calls Core APIs with server-held credentials only"
-    reference_implementation: "OWNERSHIP UNVERIFIED 2026-10-04 — user does not believe he set up htmx-docs.vercel.app; do not treat as his project until verified"
+    reference_implementation: "https://htmx-docs.vercel.app/ — user-confirmed as his architecture 2026-10-04 (deployment unremembered, not disputed)"
 
   authority_binding:
     - "Every mutating console action builds an Effect Manifest and enters approval_required; the console never dispatches."
@@ -145,4 +145,4 @@ r={receipt_id:verdict}; x={prohibited_attempts:0}
 
 ---
 
-*2026-10-04: the htmx-docs site is live (htmx + Go fragment-swapping frontend) but OWNERSHIP IS DISPUTED — the user does not believe he set it up. It must not be treated as his canonical infrastructure or as the reference implementation for this aspect until ownership is verified. Backend internals (repo, routes, auth, tenant scoping) are asserted/unknown until inventoried.*
+*2026-10-04: the htmx-docs site is live (htmx + Go fragment-swapping frontend) and user-confirmed as his architecture — he does not remember deploying it, but recognizes it as definitely his. An earlier same-day note briefly misrecorded this as disputed ownership; corrected. Backend internals (repo, routes, auth, tenant scoping) remain asserted/unknown until inventoried.* — the user does not believe he set it up. It must not be treated as his canonical infrastructure or as the reference implementation for this aspect until ownership is verified. Backend internals (repo, routes, auth, tenant scoping) are asserted/unknown until inventoried.*
