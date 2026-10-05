@@ -92,6 +92,13 @@ export interface ProviderVoiceEvent {
   signature: string;
   signature_valid: 'verified' | 'failed' | 'missing';
   received_at: string;
+  /**
+   * Ingestion-boundary attestation. Fonoster signs nothing inbound, so our
+   * receiver seals events on receipt. The seal attests "our ingress received
+   * this" — never "the provider signed this" — and is only as trustworthy as
+   * the ingress transport (authenticated NATS / header-checked webhook).
+   */
+  ingress_seal?: { sealed_by: string; sealed_at: string } | null;
 }
 
 export interface CallReceipt {

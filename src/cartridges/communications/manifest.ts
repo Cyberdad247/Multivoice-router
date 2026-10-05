@@ -105,6 +105,14 @@ export const COMMUNICATIONS_CARTRIDGE_MANIFEST: CartridgeManifest = {
       status: 'verified',
       docsRef: 'docs/cartridges/communications/voice-004-gideon.md',
     },
+    {
+      id: 'fonoster-adapter',
+      title: 'VOICE-005 Fonoster Adapter',
+      description:
+        'Maps real fork event shapes (NATS dial/CDR, autopilot webhook, in-band DTMF) to ProviderVoiceEvent. Refuted the asserted SIP-MESSAGE/signed-envelope claim: the fork signs nothing. Ingestion-boundary HMAC sealing instead. 11 tests green.',
+      status: 'verified',
+      docsRef: 'docs/cartridges/communications/voice-005-fonoster.md',
+    },
   ],
   contracts: [
     { name: 'VoiceIntent', version: 'voice.v1', summary: 'Bounded caller goal proposal; not authority.' },
