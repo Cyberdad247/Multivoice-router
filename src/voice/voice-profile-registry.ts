@@ -1,4 +1,4 @@
-export type VoiceEngine = 'kokoro_onnx' | 'gemini_live' | 'suno' | 'udio' | 'notebooklm_audio' | 'stub';
+export type VoiceEngine = 'kokoro_onnx' | 'gemini_live' | 'suno' | 'udio' | 'notebooklm_audio' | 'mistral_voxtral' | 'stub';
 export type VoiceMode = 'single' | 'council' | 'podcast' | 'automation';
 
 export interface VoiceProfile {
@@ -65,6 +65,31 @@ export const VOICE_PROFILES: VoiceProfile[] = [
     style: 'sonic director and narrator; cinematic transitions',
     allowedModes: ['podcast', 'automation'],
     safetyNotes: ['Publishing, cloning, or paid generation requires HITL.']
+  },
+  {
+    speakerId: 'heimdall_bridge_watcher',
+    knightId: 'heimdall',
+    displayName: 'Sir Heimdall',
+    engine: 'mistral_voxtral',
+    style: 'bridge guardian; watchful, resonant, all-seeing herald of the Bifrost bridge',
+    allowedModes: ['single', 'council', 'automation'],
+    safetyNotes: [
+      'Mistral Voxtral is a paid engine — generation requires HITL confirmPaid.',
+      'Kokoro harness voice (speaker 6) stays as the local free fallback on the VPS.',
+      'Voice preset overridable via MISTRAL_VOICE_HEIMDALL (Studio preset UUID or clone).'
+    ]
+  },
+  {
+    speakerId: 'hermes_control_plane',
+    knightId: 'hermes',
+    displayName: 'Sir Hermes',
+    engine: 'mistral_voxtral',
+    style: 'VPS control-plane messenger; swift, precise operator voice',
+    allowedModes: ['single', 'council', 'automation'],
+    safetyNotes: [
+      'Mistral Voxtral is a paid engine — generation requires HITL confirmPaid.',
+      'Voice preset overridable via MISTRAL_VOICE_HERMES (Studio preset UUID or clone).'
+    ]
   }
 ];
 

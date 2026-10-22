@@ -7,6 +7,19 @@ import { google } from 'googleapis';
 import cookieSession from 'cookie-session';
 import { GoogleGenAI, Modality } from '@google/genai';
 import os from 'os';
+import {
+  resolveMistralConfig,
+  mistralStatus,
+  synthesizeSpeech,
+  transcribeAudio,
+  estimateTtsCostUsd,
+  getKnightMistralVoice,
+} from './src/voice/mistral-voxtral';
+import {
+  CLOUDBRAIN_COMPONENTS,
+  KNIGHT_SEATS,
+  ROUTER_LINKS,
+} from './src/excalibur/cloudbrain-registry';
 
 dotenv.config();
 
@@ -467,6 +480,90 @@ Guidelines:
     }
   });
 
+  // ==========================================
+  // Mistral Voxtral Voice (Sir Heimdall + Sir Hermes)
+  // Routed via the Bifrost Bridge (Atom gateway on the Hermes VPS);
+  // the API key stays server-side in MISTRAL_API_KEY. See
+  // src/voice/mistral-voxtral.ts for transport notes — Bifrost's Mistral
+  // provider serves transcription, Speech falls back to direct Mistral.
+  // Voxtral is paid per character, so /speak requires confirmPaid: true.
+  // ==========================================
+  const mistralJson = express.json({ limit: '25mb' });
+
+  app.get('/api/voice/mistral/status', async (req, res) => {
+    const config = resolveMistralConfig();
+    let bifrostHealth: string = 'not-configured';
+    if (config.bifrostBaseUrl) {
+      try {
+        const r = await fetch(`${config.bifrostBaseUrl}/health`, { signal: AbortSignal.timeout(2500) });
+        bifrostHealth = r.ok ? 'ok' : `http-${r.status}`;
+      } catch {
+        bifrostHealth = 'unreachable';
+      }
+    }
+    res.json({ ...mistralStatus(config), bifrostHealth });
+  });
+
+  app.post('/api/voice/mistral/speak', mistralJson, async (req, res) => {
+    try {
+      const { text, knight, voiceId, refAudio, responseFormat, confirmPaid } = req.body || {};
+      if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text is required' });
+      if (text.length > 5000) return res.status(400).json({ error: 'text too long (max 5000 chars per request)' });
+      const knightVoice = knight ? getKnightMistralVoice(String(knight)) : undefined;
+      if (knight && !knightVoice) return res.status(400).json({ error: `unknown mistral knight: ${knight} (known: heimdall, hermes)` });
+      const estimatedCostUsd = estimateTtsCostUsd(text);
+      if (confirmPaid !== true) {
+        return res.status(403).json({
+          error: 'Voxtral TTS is a paid engine. Resend with confirmPaid: true to approve generation.',
+          estimatedCostUsd,
+          knight: knightVoice?.knightId ?? null,
+        });
+      }
+      const config = resolveMistralConfig();
+      const result = await synthesizeSpeech(config, {
+        text,
+        knightId: knightVoice?.knightId,
+        voiceId,
+        refAudio,
+        responseFormat,
+      });
+      res.json({
+        audio: result.audioBase64,
+        mimeType: result.mimeType,
+        model: result.model,
+        voice: result.voiceId ?? null,
+        transport: result.transport,
+        knight: knightVoice?.knightId ?? null,
+        speakerId: knightVoice?.speakerId ?? null,
+        estimatedCostUsd,
+      });
+    } catch (error: any) {
+      console.error('[Mistral Voxtral] speak error:', error);
+      res.status(502).json({ error: error?.message || 'Mistral Voxtral speech failed' });
+    }
+  });
+
+  app.post('/api/voice/mistral/transcribe', mistralJson, async (req, res) => {
+    try {
+      const { audio, filename, language, mimeType } = req.body || {};
+      if (!audio || typeof audio !== 'string') return res.status(400).json({ error: 'audio (base64) is required' });
+      const buffer = Buffer.from(audio, 'base64');
+      if (buffer.length === 0) return res.status(400).json({ error: 'audio decoded to zero bytes' });
+      if (buffer.length > 25 * 1024 * 1024) return res.status(400).json({ error: 'audio too large (max 25MB)' });
+      const config = resolveMistralConfig();
+      const result = await transcribeAudio(config, { audio: buffer, filename, language, mimeType });
+      res.json({
+        text: result.text,
+        language: result.language ?? null,
+        model: result.model,
+        transport: result.transport,
+      });
+    } catch (error: any) {
+      console.error('[Mistral Voxtral] transcribe error:', error);
+      res.status(502).json({ error: error?.message || 'Mistral Voxtral transcription failed' });
+    }
+  });
+
   // RAG: Extract and Commit Session Memories
   app.post('/api/rag/extract-memory', async (req, res) => {
     try {
@@ -817,6 +914,20 @@ Provide a concise, highly factual report of your execution trace, key findings, 
         cacheHitRatePct: 60.5,
         requestsTotal: 142,
       },
+      {
+        routeId: 'route-mistral-voxtral',
+        provider: 'Mistral Voxtral (via Bifrost Bridge / Atom on Hermes VPS)',
+        model: resolveMistralConfig().ttsModel,
+        endpoint: resolveMistralConfig().bifrostBaseUrl
+          ? `${resolveMistralConfig().bifrostBaseUrl}/v1/audio/*`
+          : 'https://api.mistral.ai/v1/audio/*',
+        status: (resolveMistralConfig().apiKey ? 'online' : 'offline') as 'online' | 'offline',
+        avgLatencyMs: 90,
+        p99LatencyMs: 300,
+        trafficSharePct: 0,
+        cacheHitRatePct: 0,
+        requestsTotal: 0,
+      },
     ];
 
     res.json({
@@ -836,6 +947,52 @@ Provide a concise, highly factual report of your execution trace, key findings, 
       avgLatencySavingsMs: 0
     };
     res.json({ success: true, cache: bifrostCacheStats });
+  });
+
+  // ==========================================
+  // Excalibur Command Center (hybrid remix: Multivoice root, Excalibur edge)
+  // The registry is canonical client-safe data. Status probes ONLY
+  // env-configured public/bridge URLs from the server side — VPS loopback
+  // services are unreachable from here and are reported as such, never faked.
+  // ==========================================
+  app.get('/api/excalibur/registry', (_req, res) => {
+    res.json({ components: CLOUDBRAIN_COMPONENTS, knights: KNIGHT_SEATS, routers: ROUTER_LINKS });
+  });
+
+  app.get('/api/excalibur/status', async (_req, res) => {
+    const bobUrl = process.env.BOB_GATEWAY_URL || 'https://bob.lisascustomkeychains.com/health';
+    const startedAt = Date.now();
+    let probe: {
+      id: string; url: string; ok: boolean; status: number | null; latencyMs: number; error?: string;
+    };
+    try {
+      const r = await fetch(bobUrl, { signal: AbortSignal.timeout(4000) });
+      probe = { id: 'bob-gateway', url: bobUrl, ok: r.ok, status: r.status, latencyMs: Date.now() - startedAt };
+    } catch (err) {
+      probe = {
+        id: 'bob-gateway', url: bobUrl, ok: false, status: null,
+        latencyMs: Date.now() - startedAt,
+        error: err instanceof Error ? err.message : 'probe failed',
+      };
+    }
+    const loopbackOnly = CLOUDBRAIN_COMPONENTS
+      .filter((c) => c.endpoint !== null && c.endpoint.includes('127.0.0.1'))
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        endpoint: c.endpoint as string,
+        reachable: null,
+        reason: 'loopback-only on VPS — verify via Watchtower',
+      }));
+    res.json({
+      probes: [probe],
+      loopbackOnly,
+      configured: {
+        tailscaleBridge: Boolean(process.env.EXCALIBUR_BRIDGE_URL),
+        bobGateway: Boolean(process.env.BOB_GATEWAY_URL),
+      },
+      generatedAt: new Date().toISOString(),
+    });
   });
 
   // ==========================================

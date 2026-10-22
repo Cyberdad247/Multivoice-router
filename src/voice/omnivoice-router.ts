@@ -41,7 +41,7 @@ const DEFAULT_POLICY: VoiceBudgetPolicy = {
 
 const LOCAL_ENGINES = ['kokoro_onnx', 'piper', 'browser_speech_synthesis', 'android_system_tts'];
 const REMOTE_FREE_ENGINES = ['omniroute_free_voice', 'free_tts_endpoint'];
-const PAID_ENGINES = ['suno', 'udio', 'notebooklm_audio', 'premium_cloud_tts'];
+const PAID_ENGINES = ['suno', 'udio', 'notebooklm_audio', 'premium_cloud_tts', 'mistral_voxtral'];
 
 function normalizeText(text: string) {
   return text.replace(/\s+/g, ' ').trim();
