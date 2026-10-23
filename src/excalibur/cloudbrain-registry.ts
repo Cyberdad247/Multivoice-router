@@ -58,7 +58,7 @@ export const CLOUDBRAIN_COMPONENTS: CloudBrainComponent[] = [
     id: 'graphify', name: 'Graphify', layer: 'code-graph',
     role: 'Tree-sitter code graph extraction (graphifyy)',
     endpoint: null, healthPath: null, state: 'not-integrated', knights: [],
-    notes: 'Not installed. Would emit graphify-out/{graph.json, GRAPH_REPORT.md, graph.html} per repo for the Excalibur graph panel.',
+    notes: 'Ran locally on this repo 2026-10-22 (graphifyy 0.9.94, code pass only, no LLM, 0 tokens): graphify-out/ = 886 nodes / 2,195 edges / 36 communities from 140 files, incl. the full Excalibur module. Not installed on the VPS and not yet wired into the knights — state stays not-integrated for the VPS/knight sense; the local graph is queryable via graphify query/explain/path.',
   },
   {
     id: 'graphiti', name: 'Graphiti', layer: 'temporal-graph',
