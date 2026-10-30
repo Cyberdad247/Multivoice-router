@@ -62,3 +62,17 @@ Synced against live VPS truth at each landing; every entry names its verificatio
 | 2026-10-29 | **Heimdall memory block granted** — the roster gap found the same day, closed | Notebook `notebook:ry5cupv8xm24le30j8d9`; backup `/opt/data/cloudbrain/handoff/knights.json.bak-heimdall-mem-20261029-234341`; seed note `note:4t7kexntj0g3vbexgrj5` | Memory block mirrors Gawain's shape (`recall_n` 5, `write` true, `write_triggers` ["chat"]); seed note full-body read-back ok (326 chars); runtime restarted PID 314016 → 339295, all 4 `loop start` at 23:44:16 UTC, all 4 heartbeats fresh |
 
 **Open items carried by this ledger:** Watchtower `knights` state map still lists 3 knights (Heimdall tracked as bridge guardian — visibility gap, not liveness); Mnemosyne `duty` field null in knights.json (Watchtower carries her as chat duty); registry states still honestly `not-integrated` for CodeGraph + Understand-Anything, `adapter-stub` for Graphiti, `design-only` for MemCastle.
+
+---
+
+## 5. Hermes Control Plane — Provenance Entries (synced 2026-10-29)
+
+Hermes (NousResearch hermes-agent, MIT) is the VPS control plane: all box operations ride its jobs / files / cron APIs. Full comparison: `docs/HERMES-CANONICAL-COMPARISON.md` (companion to §4's HTMX comparison).
+
+| Date (EDT) | Entry | Evidence |
+| :--- | :--- | :--- |
+| 2026-10-05 | Hermes dashboard chat rewired to the VPS Bifrost gateway: provider `custom`, `base_url http://127.0.0.1:8180/v1` | Config backed up on-box (`config.yaml.bak-20261005`); Bifrost answered a live chat completion before the change; gateway restarted `state=running`, dashboard ok |
+| 2026-10-22 → 10-26 | Router deploy + update (§4) executed entirely through the Hermes control surface | One-shot jobs created/triggered/deleted by exact name via API; files staged under `/opt/data/` (files API runs as `hermes`, cannot write `/root`) |
+| 2026-10-26 | Deployment baseline recorded | Hermes **0.20.5**, gateway running; box load 0.00/0.08/0.08, RAM 4,168/7,941 MB used at baseline |
+| 2026-10-27 → 10-28 | Revive chain proven around Hermes: host s6 resurrects the gateway (~20s kill test); reboot drill returns ALL SERVICES UP (7/7); Hermes Prime settled as a read-only MGV observer (60s host timer, 56,277 cycles, starts nothing) | Boot report on a real boot; Prime phial + state file read on the host |
+| 2026-10-29 | Version position recorded (no upgrade scheduled — user's call) | Deployed **0.20.5** vs upstream **v0.22.5** (2026-10-22, repo HEAD `088f657`): two minor lines behind; upstream v0.22.2 fixed the gateway-after-reboot liveness class the local revive chain defends against |
